@@ -1,0 +1,62 @@
+# 此工作流使用未经GitHub认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流允许你为项目生成SLSA（Supply Chain Levels of Software Artifacts）的可信任性文件。
+# 生成的文件满足SLSA的第3级可信任性要求 - 请参阅 https://slsa.dev/spec/v0.1/requirements
+# 该项目是OpenSSF（openssf.org）的一个倡议，并在 https://github.com/slsa-framework/slsa-github-generator 开发。
+# 可以使用 https://github.com/slsa-framework/slsa-verifier 验证可信任性文件。
+# 有关SLSA及其如何改善供应链的更多信息，请访问 slsa.dev。
+
+name: SLSA通用生成器
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      digests: ${{ steps.hash.outputs.digests }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # ========================================================
+      #
+      # 步骤 1：构建你的构建产物。
+      #
+      # ========================================================
+      - name: 构建构建产物
+        run: |
+            # 这是一些令人惊奇的构建产物。
+            echo "artifact1" > artifact1
+            echo "artifact2" > artifact2
+
+      # ========================================================
+      #
+      # 步骤 2：添加一个步骤生成可信任性主体，
+      #         如下所示。更新sha256 sum参数，
+      #         以包括你为其生成可信任性的所有二进制文件。
+      #
+      # ========================================================
+      - name: 生成可信任性主体
+        id: hash
+        run: |
+          set -euo pipefail
+
+          # 列出可信任性将引用的构建产物。
+          files=$(ls artifact*)
+          # 生成主体（base64编码）。
+          echo "hashes=$(sha256sum $files | base64 -w0)" >> "${GITHUB_OUTPUT}"
+
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read   # 读取工作流路径的权限。
+      id-token: write # 签署可信任性的权限。
+      contents: write # 将资产添加到发布的权限。
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.4.0
+    with:
+      base64-subjects: "${{ needs.build.outputs.digests }}"
+      upload-assets: true # 可选：上传到新发布

@@ -1,0 +1,56 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将 Brakeman 与 GitHub 的代码扫描功能集成
+# Brakeman 是用于 Ruby on Rails 应用程序的静态分析安全漏洞扫描工具
+
+name: Brakeman Scan
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  brakeman-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    name: Brakeman Scan
+    runs-on: ubuntu-latest
+    steps:
+    # 将仓库检出到 GitHub Actions 运行器
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # 根据需要自定义 Ruby 版本
+    - name: 设置 Ruby
+      uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
+      with:
+        ruby-version: '2.7'
+
+    - name: 设置 Brakeman
+      env:
+        BRAKEMAN_VERSION: '4.10' # Brakeman 版本 4.10+ 支持 SARIF
+      run: |
+        gem install brakeman --version $BRAKEMAN_VERSION
+
+    # 执行 Brakeman CLI，并生成包含分析期间识别的安全问题的 SARIF 输出
+    - name: 扫描
+      continue-on-error: true
+      run: |
+        brakeman -f sarif -o output.sarif.json .
+
+    # 上传上一步生成的 SARIF 文件
+    - name: 上传 SARIF
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: output.sarif.json

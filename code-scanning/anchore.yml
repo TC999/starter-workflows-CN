@@ -1,0 +1,44 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 此工作流检出代码，构建镜像，使用 Anchore 的 Grype 工具执行容器镜像漏洞扫描，
+# 并将结果与 GitHub Advanced Security 的代码扫描功能集成。
+# 有关 Anchore 扫描操作的使用和参数的更多信息，请参阅 https://github.com/anchore/scan-action。
+# 有关 Anchore 的容器镜像扫描工具 Grype 的更多信息，请参阅 https://github.com/anchore/grype
+name: Anchore Grype 漏洞扫描
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  Anchore-Build-Scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    - name: 构建 Docker 镜像
+      run: docker build . --file Dockerfile --tag localbuild/testimage:latest
+    - name: 运行 Anchore Grype 扫描操作
+      uses: anchore/scan-action@d5aa5b6cb9414b0c7771438046ff5bcfa2854ed7
+      id: scan
+      with:
+        image: "localbuild/testimage:latest"
+        fail-build: true
+        severity-cutoff: critical
+    - name: 上传漏洞报告
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}

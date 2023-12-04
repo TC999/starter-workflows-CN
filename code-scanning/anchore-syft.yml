@@ -1,0 +1,34 @@
+# 该工作流程使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 该工作流程检出代码，构建一个镜像，使用 Anchore 的 Syft 工具执行容器镜像扫描，
+# 并将结果上传到 GitHub Dependency submission API。
+
+# 有关 Anchore sbom-action 用法和参数的更多信息，请参阅 https://github.com/anchore/sbom-action。
+# 有关 Anchore SBOM 工具 Syft 的更多信息，请参阅 https://github.com/anchore/syft
+name: Anchore Syft SBOM 扫描
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+
+permissions:
+  contents: write
+
+jobs:
+  Anchore-Build-Scan:
+    permissions:
+      contents: write # 上传到 Dependency submission API 所需权限
+    runs-on: ubuntu-latest
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    - name: 构建 Docker 镜像
+      run: docker build . --file Dockerfile --tag localbuild/testimage:latest
+    - name: 扫描镜像并上传依赖结果
+      uses: anchore/sbom-action@bb716408e75840bbb01e839347cd213767269d4a
+      with:
+        image: "localbuild/testimage:latest"
+        artifact-name: image.spdx.json
+        dependency-snapshot: true
+        

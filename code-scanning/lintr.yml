@@ -1,0 +1,53 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+# lintr 为 R 提供静态代码分析。
+# 它检查代码是否符合指定的风格，
+# 识别语法错误和可能的语义问题，
+# 然后向您报告，以便您采取行动。
+# 更多详细信息请访问 https://lintr.r-lib.org/
+
+name: lintr
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  lintr:
+    name: 运行 lintr 扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # 用于 checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅对私有存储库需要，由 github/codeql-action/upload-sarif 获取操作运行状态
+
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v3
+
+      - name: 设置 R
+        uses: r-lib/actions/setup-r@4e1feaf90520ec1215d1882fdddfe3411c08e492
+
+      - name: 设置 lintr
+        uses: r-lib/actions/setup-r-dependencies@4e1feaf90520ec1215d1882fdddfe3411c08e492
+        with:
+          extra-packages: lintr
+
+      - name: 运行 lintr
+        run: lintr::sarif_output(lintr::lint_dir("."), "lintr-results.sarif")
+        shell: Rscript {0}
+        continue-on-error: true
+
+      - name: 上传分析结果到 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: lintr-results.sarif
+          wait-for-processing: true

@@ -1,0 +1,53 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+# Puppet Lint 用于根据建议的 Puppet 语言样式指南测试 Puppet 代码。
+# https://puppet.com/docs/puppet/7/style_guide.html
+# Puppet Lint 仅验证代码风格；它不验证语法。
+# 若要测试语法，请使用 Puppet 的 puppet parser validate 命令。
+# 更多详细信息请访问 https://github.com/puppetlabs/puppet-lint/
+
+name: puppet-lint
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  puppet-lint:
+    name: 运行 puppet-lint 扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # 用于 checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 设置 Ruby
+        uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
+        with:
+          ruby-version: 2.7
+          bundler-cache: true
+
+      - name: 安装 puppet-lint
+        run: gem install puppet-lint
+
+      - name: 运行 puppet-lint
+        run: puppet-lint . --sarif > puppet-lint-results.sarif
+        continue-on-error: true
+
+      - name: 上传分析结果至 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: puppet-lint-results.sarif
+          wait-for-processing: true

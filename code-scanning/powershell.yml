@@ -1,0 +1,47 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# https://github.com/microsoft/action-psscriptanalyzer
+# 有关 PSScriptAnalyzer 的更多信息，请参见
+# https://github.com/PowerShell/PSScriptAnalyzer
+
+name: PSScriptAnalyzer
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: 运行 PSScriptAnalyzer
+        uses: microsoft/psscriptanalyzer-action@6b2948b1944407914a58661c49941824d149734f
+        with:
+          # 有关有关选项的更多信息，请查看 https://github.com/microsoft/action-psscriptanalyzer。
+          # 以下设置在整个存储库上运行 PSScriptAnalyzer 并运行一些基本安全规则。
+          path: .\
+          recurse: true
+          # 包括您自己的基本安全规则。删除此选项将运行所有规则。
+          includeRule: '"PSAvoidGlobalAliases", "PSAvoidUsingConvertToSecureStringWithPlainText"'
+          output: results.sarif
+
+      # 上传上一步生成的 SARIF 文件
+      - name: 上传 SARIF 结果文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

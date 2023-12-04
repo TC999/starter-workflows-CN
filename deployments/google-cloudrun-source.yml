@@ -1,0 +1,89 @@
+# 这个工作流在将代码提交到$default-branch分支时，将源代码部署到Cloud Run。
+
+# 概述：
+# 1. 验证到Google Cloud。
+# 2. 部署到Cloud Run。
+
+# 要配置这个工作流：
+
+# 1. 确保启用了所需的Google Cloud API：
+#    - Cloud Run：run.googleapis.com
+#    - Cloud Build：cloudbuild.googleapis.com
+#    - Artifact Registry：artifactregistry.googleapis.com
+
+# 2. 创建并配置GitHub的工作负载标识联合（https://github.com/google-github-actions/auth#setting-up-workload-identity-federation）。
+
+# 3. 确保已授予所需的IAM权限：
+#    - Cloud Run：
+#      - roles/run.admin
+#      - roles/iam.serviceAccountUser（作为Cloud Run运行时服务帐户）
+#    - Cloud Build：
+#      - roles/cloudbuild.builds.editor
+#    - Cloud Storage：
+#      - roles/storage.objectAdmin
+#    - Artifact Registry：
+#      - roles/artifactregistry.admin（项目或存储库级别）
+
+#    注意：在分配IAM角色时应始终遵循最小权限原则。
+
+# 4. 为WIF_PROVIDER和WIF_SERVICE_ACCOUNT创建GitHub机密。
+
+# 5. 更改以下环境变量的值：SERVICE和REGION。
+
+#    更多关于如何运行此工作流的支持，请访问https://github.com/marketplace/actions/deploy-to-cloud-run。
+
+# 进一步阅读：
+#   - Cloud Run运行时服务帐户 - https://cloud.google.com/run/docs/securing/service-identity
+#   - Cloud Run IAM权限 - https://cloud.google.com/run/docs/deploying-source-code#permissions_required_to_deploy
+#   - Cloud Run builds from source - https://cloud.google.com/run/docs/deploying-source-code
+#   - 最小权限原则 - https://cloud.google.com/blog/products/identity-security/dont-get-pwned-practicing-the-principle-of-least-privilege
+
+name: 从源代码部署到Cloud Run
+
+on:
+  push:
+    branches: [ $default-branch ]
+
+env:
+  PROJECT_ID: YOUR_PROJECT_ID # TODO: 更新Google Cloud项目ID
+  SERVICE: YOUR_SERVICE_NAME # TODO: 更新Cloud Run服务名称
+  REGION: YOUR_SERVICE_REGION # TODO: 更新Cloud Run服务区域
+
+jobs:
+  deploy:
+    # 使用适用于工作负载标识联合的'id-token'添加预期权限
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出
+        uses: actions/checkout@v2
+
+      - name: Google身份验证
+        id: auth
+        uses: 'google-github-actions/auth@v0'
+        with:
+          workload_identity_provider: '${{ secrets.WIF_PROVIDER }}' # 例如 - projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider
+          service_account: '${{ secrets.WIF_SERVICE_ACCOUNT }}' # 例如 - my-service-account@my-project.iam.gserviceaccount.com
+
+      # 注意：备选选项 - 通过凭据JSON进行身份验证
+      # - name: Google身份验证
+      #   id: auth
+      #   uses: 'google-github-actions/auth@v0'
+      #   with:
+      #     credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: 部署到Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v0
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          # 注意：如果需要，请更新到适当的源文件夹
+          source: ./
+
+      # 如果需要，在后续步骤中使用Cloud Run的url输出
+      - name: 显示输出
+        run: echo ${{ steps.deploy.outputs.url }}

@@ -1,0 +1,56 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# zimperium-zscan GitHub 操作可扫描您的移动应用二进制文件（iOS 或 Android）
+# 并识别与安全、隐私和合规性相关的漏洞。​
+#
+# 先决条件：
+#  * 需要活动的 Zimperium zScan 帐户。如果您不是现有的 Zimperium
+#    zScan 客户，请访问 https://www.zimperium.com/contact-us 请求 zSCAN 演示。
+#  * 要在 GitHub 代码扫描警报中显示问题并查看修复信息，需要 GitHub 高级安全性 (GHAS) 或公共存储库。​
+#
+# 获取更多信息和设置说明
+# 请访问：https://github.com/Zimperium/zScanMarketplace#readme
+
+name: "Zimperium zScan"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+
+permissions:
+  contents: read
+
+jobs:
+  zscan:
+    name: zScan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read          # 用于 actions/checkout 获取代码
+      security-events: write  # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read           # 仅对私有存储库需要，由 github/codeql-action/upload-sarif 获取操作运行状态
+    steps:
+    - name: 检出存储库
+      uses: actions/checkout@v3
+
+    - name: 执行 gradle 构建
+      run: ./gradlew build    # 修改此处以构建您的移动应用
+
+    - name: 运行 Zimperium zScan
+      uses: zimperium/zscanmarketplace@bfc6670f6648d796098c251ccefcfdb98983174d
+      timeout-minutes: 60
+      with:
+        # 替换：Zimperium 客户端环境名称
+        client_env: env_string
+        # 替换：Zimperium 客户端 ID
+        client_id: id_string
+        # 替换：Zimperium 客户端密钥
+        client_secret: ${{ secrets.ZSCAN_CLIENT_SECRET }}
+        # 替换：.ipa 或 .apk 文件的路径
+        app_file: app-release-unsigned.apk
+
+    - name: 上传 SARIF 文件
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: Zimperium.sarif

@@ -1,0 +1,46 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流文件需要在 Semgrep.dev 上拥有免费账户
+# 用于管理规则、文件忽略、通知等。
+#
+# 详见 https://semgrep.dev/docs
+
+name: Semgrep
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 使用，以获取 Action 运行状态
+    name: 扫描
+    runs-on: ubuntu-latest
+    steps:
+      # 检出项目源代码
+      - uses: actions/checkout@v3
+
+      # 使用项目在 https://semgrep.dev/manage 上的配置扫描代码
+      - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
+        with:
+          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+          publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
+          generateSarif: "1"
+
+      # 上传在上一步生成的 SARIF 文件
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep.sarif
+        if: always()

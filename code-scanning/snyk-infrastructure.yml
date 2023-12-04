@@ -1,0 +1,49 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 一个示例工作流，检出基础设施即代码配置文件，如 Kubernetes、Helm 和 Terraform，并扫描其中的任何安全问题。
+# 然后将结果上传到 GitHub 安全代码扫描
+
+# 获取更多示例，包括如何将扫描限制为仅高危问题和在 PR 检查失败时终止，请参阅 https://github.com/snyk/actions/
+
+name: Snyk Infrastructure as Code
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  snyk:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 使用，以获取 Action 运行状态
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: 运行 Snyk 检查配置文件安全问题
+        # Snyk 可用于在检测到安全问题时中断构建。
+        # 在这种情况下，我们希望将问题上传到 GitHub 代码扫描
+        continue-on-error: true
+        uses: snyk/actions/iac@14818c4695ecc4045f33c9cee9e795a788711ca4
+        env:
+          # 为了使用 Snyk 操作，您需要具有 Snyk API 令牌。
+          # 详见 https://github.com/snyk/actions#getting-your-snyk-token
+          # 或者您可以在 https://snyk.io/login 免费注册
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          # 添加要测试的配置文件的路径。
+          # 例如，对于 Kubernetes 部署清单，可以是 `deployment.yaml`
+          # 或 Terraform 配置文件 `main.tf`
+          file: your-file-to-test.yaml
+      - name: 将结果上传到 GitHub 代码扫描
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif

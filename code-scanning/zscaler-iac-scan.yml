@@ -1,0 +1,52 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流运行 Zscaler 基础设施即代码（IaC）扫描应用，
+# 用于检测 IaC 模板中的安全配置错误，并将发现结果发布到存储库的代码扫描警报部分。
+
+# 登录到 Zscaler Posture Control（ZPC）门户开始注册流程。
+# 复制在注册流程中生成的客户端 ID 和客户端密钥，并进行配置。
+# GitHub secrets（ZSCANNER_CLIENT_ID，ZSCANNER_CLIENT_SECRET）。
+
+# 请参考 https://github.com/marketplace/actions/zscaler-iac-scan 了解有关设置此工作流的其他详细信息。
+# 如有此工作流的问题，请在 https://github.com/ZscalerCWP/Zscaler-IaC-Action/issues 提出，以进行进一步调查。
+
+name: Zscaler IaC Scan
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  zscaler-iac-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+    runs-on: ubuntu-latest
+    steps:
+      - name : 代码检出
+        uses: actions/checkout@v3
+      - name : Zscaler IAC 扫描
+        uses : ZscalerCWP/Zscaler-IaC-Action@8d2afb33b10b4bd50e2dc2c932b37c6e70ac1087
+        id : zscaler-iac-scan
+        with:
+          client_id : ${{ secrets.ZSCANNER_CLIENT_ID }}
+          client_secret : ${{ secrets.ZSCANNER_CLIENT_SECRET }}
+          # 这是在 ZPC Admin 门户注册过程中指定的用户区域。
+          region : 'US'
+          iac_dir : # 从根目录输入 IaC 目录路径。
+          iac_file : # 从根目录输入 IaC 文件路径。
+          output_format : #(可选) 默认情况下，以人类可读的格式提供输出。然而，如果需要不同的格式，可以在此指定。
+          # 根据在 IaC 模板中识别的策略违规来设置构建失败，将输入值 (fail_build) 设置为 true。
+          fail_build : # 输入 true/false
+      # 确保包含以下步骤以将扫描结果发布到存储库的代码扫描警报部分。
+      - name: 上传 SARIF 文件
+        if: ${{ success() || failure() && (steps.zscaler-iac-scan.outputs.sarif_file_path != '') }}
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.zscaler-iac-scan.sarif_file_path }}

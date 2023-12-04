@@ -1,0 +1,45 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+# hadolint 是用 Haskell 编写的 Dockerfile 语法检查工具，
+# 可帮助您构建符合最佳实践的 Docker 镜像。
+# 详细信息请访问 https://github.com/hadolint/hadolint
+
+name: Hadolint
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    name: 运行 hadolint 扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取工作运行状态时需要
+    steps:
+      - name: 检查代码
+        uses: actions/checkout@v3
+
+      - name: 运行 hadolint
+        uses: hadolint/hadolint-action@f988afea3da57ee48710a9795b6bb677cc901183
+        with:
+          dockerfile: ./Dockerfile
+          format: sarif
+          output-file: hadolint-results.sarif
+          no-fail: true
+
+      - name: 上传分析结果到 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: hadolint-results.sarif
+          wait-for-processing: true

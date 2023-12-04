@@ -1,0 +1,37 @@
+#这是一个帮助你开始使用Actions的基本工作流程。
+
+# 定义工作流的名称为CI
+name: CI
+
+# 控制工作流何时运行
+on:
+  # 在推送或拉取请求事件时触发工作流，但仅针对$default-branch分支
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+  # 允许你从Actions选项卡手动运行此工作流
+  workflow_dispatch:
+
+# 一个工作流包含一个或多个作业，可以按顺序或并行运行
+jobs:
+  # 此工作流包含一个名为"build"的单个作业
+  build:
+    # 作业将在其上运行的运行器类型
+    runs-on: ubuntu-latest
+
+    # 步骤表示作业的一系列任务
+    steps:
+      # 检出仓库到$GITHUB_WORKSPACE，以便作业可以访问它
+      - uses: actions/checkout@v3
+
+      # 使用运行器的shell运行单行脚本
+      - name: Run a one-line script
+        run: echo Hello, world!
+
+      # 使用运行器的shell运行多行脚本
+      - name: Run a multi-line script
+        run: |
+          echo Add other actions to build,
+          echo test, and deploy your project.

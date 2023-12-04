@@ -1,0 +1,6 @@
+{
+    "name": "Crystal",
+    "description": "构建和测试 Crystal 项目。",
+    "iconName": "crystal",
+    "categories": ["持续集成", "Crystal"]
+}

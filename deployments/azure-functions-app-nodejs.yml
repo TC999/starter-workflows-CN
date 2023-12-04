@@ -1,0 +1,66 @@
+# 此工作流将在将提交推送到默认分支时，构建一个 Node.js 项目，并将其部署到 Azure Functions App 上（Windows 或 Linux）。
+
+# 此工作流假设您已经创建了目标 Azure Functions app。
+# 有关说明，请参见：
+#   - https://learn.microsoft.com/en-us/azure/azure-functions/create-first-function-vs-code-node
+#   - https://learn.microsoft.com/en-us/azure/azure-functions/create-first-function-vs-code-typescript
+
+# 要配置此工作流程：
+# 1. 在您的仓库中设置以下秘密：
+#    - AZURE_FUNCTIONAPP_PUBLISH_PROFILE
+# 2. 更改环境变量以符合您的配置。
+
+# 有关更多信息：
+#   - Azure 的 GitHub Actions：https://github.com/Azure/Actions
+#   - Azure Functions Action：https://github.com/Azure/functions-action
+#   - Publish Profile：https://github.com/Azure/functions-action#using-publish-profile-as-deployment-credential-recommended
+#   - 用于 RBAC 的 Azure 服务主体：https://github.com/Azure/functions-action#using-azure-service-principal-for-rbac-as-deployment-credential
+
+# 有关使用 GitHub Action 工作流开始在 Azure 部署的示例：https://github.com/Azure/actions-workflow-samples/tree/master/FunctionApp
+
+name: 将 Node.js 项目部署到 Azure Function App
+
+on:
+  push:
+    branches: [$default-branch]
+
+env:
+  AZURE_FUNCTIONAPP_NAME: 'your-app-name'   # 将其设置为 Azure 上的函数应用名称
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'       # 将其设置为函数应用项目的路径，默认为仓库根目录
+  NODE_VERSION: '16.x'                      # 将其设置为要使用的 Node.js 版本（例如 '8.x'、'10.x'、'12.x'）
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest # 对于 Linux，请使用 ubuntu-latest
+    environment: dev
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v3
+
+    # 如果要使用 Azure RBAC 而不是 Publish Profile，请取消下面任务的注释
+    # - name: '通过 Azure CLI 登录'
+    #   uses: azure/login@v1
+    #   with:
+    #     creds: ${{ secrets.AZURE_RBAC_CREDENTIALS }} # 在您的仓库中设置 AZURE_RBAC_CREDENTIALS 秘密
+
+    - name: 设置 Node ${{ env.NODE_VERSION }} 环境
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: '使用 Npm 解析项目依赖关系'
+      shell: pwsh # 对于 Linux，请使用 bash
+      run: |
+        pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+        npm install
+        npm run build --if-present
+        npm run test --if-present
+        popd
+
+    - name: '运行 Azure Functions Action'
+      uses: Azure/functions-action@v1
+      id: fa
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }} # 删除 publish-profile 以使用 Azure RBAC

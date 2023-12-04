@@ -1,0 +1,53 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# Checkmarx One GitHub Action 可以让您直接从 GitHub 工作流触发 SAST、SCA 和 KICS 扫描。
+# 它提供了一个围绕 Checkmarx One CLI 工具的包装器，该工具从源代码仓库创建一个 zip 存档，
+# 并将其上传到 Checkmarx One 进行扫描。GitHub Action 提供了与 GitHub 的轻松集成，同时利用了
+# CLI 工具的全部功能和灵活性来进行扫描定制。
+
+# 这是一个基本的工作流，帮助您开始使用 Checkmarx One Action，
+# 文档可以在此处找到：https://checkmarx.com/resource/documents/en/34965-68702-checkmarx-one-github-actions.html
+
+name: Checkmarx Scan
+
+# 控制工作流何时运行
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [ $default-branch, $protected-branches ]
+
+permissions:
+  contents: read
+
+# 工作流运行由一个或多个作业组成，可以按顺序或并行运行
+jobs:
+  # 此工作流包含一个名为 "build" 的单一作业
+  build:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+
+    # 作业将在的运行类型
+    runs-on: ubuntu-latest
+
+    # 步骤表示作业的一系列任务，将作为作业的一部分执行
+    steps:
+      # 此步骤检出代码库的副本。
+      - name: 检出仓库
+        uses: actions/checkout@v3
+      # 此步骤创建 Checkmarx One 扫描
+      - name: Checkmarx One 扫描
+        uses: checkmarx/ast-github-action@8e887bb93dacc44e0f5b64ee2b06d5815f89d4fc
+        with:
+          base_uri: https://ast.checkmarx.net  # 这应该由 Checkmarx One 的基本 URI 替换
+          cx_client_id: ${{ secrets.CX_CLIENT_ID }} # 这应该在 Checkmarx One 账户中创建：https://checkmarx.com/resource/documents/en/34965-118315-authentication-for-checkmarx-one-cli.html#UUID-a4e31a96-1f36-6293-e95a-97b4b9189060_UUID-4123a2ff-32d0-2287-8dd2-3c36947f675e
+          cx_client_secret: ${{ secrets.CX_CLIENT_SECRET }} # 这应该在 Checkmarx One 账户中创建：https://checkmarx.com/resource/documents/en/34965-118315-authentication-for-checkmarx-one-cli.html#UUID-a4e31a96-1f36-6293-e95a-97b4b9189060_UUID-4123a2ff-32d0-2287-8dd2-3c36947f675e
+          cx_tenant: ${{ secrets.CX_TENANT }} # 这应该由 Checkmarx One 的租户替换
+          additional_params: --report-format sarif --output-path .
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          # SARIF 文件相对于仓库根目录的路径
+          sarif_file: cx_result.sarif

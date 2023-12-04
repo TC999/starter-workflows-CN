@@ -1,0 +1,78 @@
+# 当提交推送到默认分支时，此工作流将构建一个容器并将其部署到 Azure Functions App on Linux。
+
+# 此工作流假设您已经创建了目标 Azure Functions app。
+# 有关说明，请参见 https://learn.microsoft.com/en-us/azure/azure-functions/functions-create-function-linux-custom-image?tabs=in-process%2Cbash%2Cazure-cli&pivots=programming-language-csharp
+
+# 要配置此工作流程：
+# 1. 在您的仓库中设置以下秘密：
+#    - AZURE_RBAC_CREDENTIALS
+#    - REGISTRY_USERNAME
+#    - REGISTRY_PASSWORD
+# 2. 更改环境变量以符合您的配置。
+
+# 有关更多信息：
+#   - Azure 的 GitHub Actions：https://github.com/Azure/Actions
+#   - Azure Functions Container Action：https://github.com/Azure/functions-container-action
+#   - 用于 RBAC 的 Azure 服务主体：https://github.com/Azure/functions-action#using-azure-service-principal-for-rbac-as-deployment-credential
+
+# 有关使用 GitHub Action 工作流开始在 Azure 部署的示例：https://github.com/Azure/actions-workflow-samples/tree/master/FunctionApp
+
+name: 将容器部署到 Azure Functions App
+
+on:
+  push:
+    branches: [$default-branch]
+
+permissions:
+  contents: read
+
+env:
+  AZURE_FUNCTIONAPP_NAME: 'your-app-name'   # 将其设置为 Azure 上的函数应用名称
+  LOGIN_SERVER: 'login-server'              # 将其设置为私有容器注册表的登录服务器（例如 'contoso.azurecr.io'，'index.docker.io'）
+  REGISTRY: 'your-registry'                 # 将其设置为 REGISTRY 的正确值
+  NAMESPACE: 'your-namespace'               # 将其设置为 NAMESPACE 的正确值
+  IMAGE: 'your-image'                       # 将其设置为 IMAGE 的正确值
+  TAG: 'your-tag'                           # 将其设置为 TAG 的正确值
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v3
+
+    - name: '通过 Azure CLI 登录'
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_RBAC_CREDENTIALS }}
+
+    - name: 'Docker 登录'
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ env.LOGIN_SERVER }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+
+    - name: '组合定制的 Docker 镜像'
+      shell: bash
+      run: |
+        # 如果您的函数应用项目不位于仓库的根目录，请更改 docker build 的路径
+        docker build . -t ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE }}:${{ env.TAG }}
+        docker push ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE }}:${{ env.TAG }}
+
+    - name: '运行 Azure Functions Container Action'
+      uses: Azure/functions-container-action@v1
+      id: fa
+      with:
+        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+        image: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE }}:${{ env.TAG }}
+
+    # 如果要显示或使用 functionapp url，请取消下面任务的注释
+    #- name: '发布 functionapp url'
+    #  run: |
+    #    echo "${{ steps.fa.outputs.app-url }}"
+
+    - name: Azure 注销
+      run: |
+        az logout

@@ -1,0 +1,75 @@
+# 这个工作流将构建一个Docker容器，将其发布到IBM容器注册表，并在推送到$default-branch分支时将其部署到IKS。
+
+# 要配置这个工作流：
+
+# 1. 确保您的存储库包含一个Dockerfile。
+# 2. 在存储库的设置中设置机密：创建ICR_NAMESPACE和IBM_CLOUD_API_KEY。
+# 3. 更改IBM_CLOUD_REGION、REGISTRY_HOSTNAME、IMAGE_NAME、IKS_CLUSTER、DEPLOYMENT_NAME和PORT的值。
+
+name: 构建并部署到IKS
+
+on:
+  push:
+    branches: [ $default-branch ]
+
+# 所有作业和步骤中都可用的环境变量
+env:
+  GITHUB_SHA: ${{ github.sha }}
+  IBM_CLOUD_API_KEY: ${{ secrets.IBM_CLOUD_API_KEY }}
+  IBM_CLOUD_REGION: us-south
+  ICR_NAMESPACE: ${{ secrets.ICR_NAMESPACE }}
+  REGISTRY_HOSTNAME: us.icr.io
+  IMAGE_NAME: iks-test
+  IKS_CLUSTER: example-iks-cluster-name-or-id
+  DEPLOYMENT_NAME: iks-test
+  PORT: 5001
+
+jobs:
+  setup-build-publish-deploy:
+    name: 设置、构建、发布和部署
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+
+    - name: 检出
+      uses: actions/checkout@v3
+
+    # 下载并安装IBM Cloud CLI
+    - name: 安装IBM Cloud CLI
+      run: |
+        curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+        ibmcloud --version
+        ibmcloud config --check-version=false
+        ibmcloud plugin install -f kubernetes-service
+        ibmcloud plugin install -f container-registry
+
+    # 使用IBM Cloud CLI进行身份验证
+    - name: 使用IBM Cloud CLI进行身份验证
+      run: |
+        ibmcloud login --apikey "${IBM_CLOUD_API_KEY}" -r "${IBM_CLOUD_REGION}" -g default
+        ibmcloud cr region-set "${IBM_CLOUD_REGION}"
+        ibmcloud cr login
+
+    # 构建Docker镜像
+    - name: 使用Docker构建
+      run: |
+        docker build -t "$REGISTRY_HOSTNAME"/"$ICR_NAMESPACE"/"$IMAGE_NAME":"$GITHUB_SHA" \
+          --build-arg GITHUB_SHA="$GITHUB_SHA" \
+          --build-arg GITHUB_REF="$GITHUB_REF" .
+
+    # 将镜像推送到IBM容器注册表
+    - name: 将镜像推送到ICR
+      run: |
+        docker push $REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA
+
+    # 将Docker镜像部署到IKS集群
+    - name: 部署到IKS
+      run: |
+        ibmcloud ks cluster config --cluster $IKS_CLUSTER
+        kubectl config current-context
+        kubectl create deployment $DEPLOYMENT_NAME --image=$REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA --dry-run -o yaml > deployment.yaml
+        kubectl apply -f deployment.yaml
+        kubectl rollout status deployment/$DEPLOYMENT_NAME
+        kubectl create service loadbalancer $DEPLOYMENT_NAME --tcp=80:$PORT --dry-run -o yaml > service.yaml
+        kubectl apply -f service.yaml
+        kubectl get services -o wide

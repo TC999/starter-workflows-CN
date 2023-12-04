@@ -1,0 +1,6 @@
+{
+    "name": "基于 CMake 的单平台项目",
+    "description": "在单个平台上构建和测试基于 CMake 的项目。",
+    "iconName": "cmake",
+    "categories": ["持续集成", "C", "C++"]
+}

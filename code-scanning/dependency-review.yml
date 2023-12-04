@@ -1,0 +1,22 @@
+# 依赖审查操作
+
+# 此操作将扫描作为拉取请求的一部分更改的依赖清单文件，显示在拉取请求中声明或更新的软件包的已知漏洞版本。
+# 一旦安装完成，如果工作流运行被标记为必需，则会阻止引入已知有漏洞的软件包的拉取请求合并。
+
+# 源存储库: https://github.com/actions/dependency-review-action
+# 公共文档: https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review#dependency-review-enforcement
+
+name: 'Dependency Review'
+on: [pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v3
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v3

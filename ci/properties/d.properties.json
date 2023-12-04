@@ -1,0 +1,6 @@
+{
+    "name": "D",
+    "description": "使用 dub 构建和测试 D 项目。",
+    "iconName": "d",
+    "categories": ["持续集成", "D"]
+}

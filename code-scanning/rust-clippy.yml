@@ -1,0 +1,51 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+# rust-clippy 是一个运行一系列检查的工具，用于捕捉 Rust 代码中的常见错误，帮助改进 Rust 代码。
+# 更多详情请参阅 https://github.com/rust-lang/rust-clippy 和 https://rust-lang.github.io/rust-clippy/
+
+name: rust-clippy 分析
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  rust-clippy-analyze:
+    name: 运行 rust-clippy 分析
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v2
+
+      - name: 安装 Rust 工具链
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af #@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+
+      - name: 安装所需的 cargo 工具
+        run: cargo install clippy-sarif sarif-fmt
+
+      - name: 运行 rust-clippy
+        run:
+          cargo clippy
+          --all-features
+          --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        continue-on-error: true
+
+      - name: 上传分析结果到 GitHub
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: rust-clippy-results.sarif
+          wait-for-processing: true

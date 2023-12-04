@@ -1,0 +1,54 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 这是一个基本的工作流，帮助您开始使用 Checkmarx CxFlow Action
+
+name: CxFlow
+
+# 控制工作流何时运行
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+# 工作流运行由一个或多个作业组成，可以按顺序或并行运行
+permissions:
+  contents: read
+
+jobs:
+  # 此工作流包含一个名为 "build" 的单一作业
+  build:
+    # 作业将在的运行类型 - 需要使用 Docker 的 Ubuntu
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      issues: write # 用于 checkmarx-ts/checkmarx-cxflow-github-action 将反馈写入 GitHub 问题
+      pull-requests: write # 用于 checkmarx-ts/checkmarx-cxflow-github-action 将反馈写入 PR
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+
+    # 步骤需要 - 检出代码、运行 CxFlow Action、上传 SARIF 报告（可选）
+    steps:
+    # 将代码库检出到 $GITHUB_WORKSPACE 下，以便作业可以访问它
+    - uses: actions/checkout@v3
+    # 运行 Checkmarx 扫描，利用 CxFlow 的最新版本 - 请参阅 Action README 以获取输入列表
+    - name: 运行 Checkmarx CxFlow Action
+      uses: checkmarx-ts/checkmarx-cxflow-github-action@49d8269b14ca87910ba003d47a31fa0c7a11f2fe
+      with:
+        project: ${{ secrets.CHECKMARX_PROJECT }}
+        team: ${{ secrets.CHECKMARX_TEAMS }}
+        checkmarx_url: ${{ secrets.CHECKMARX_URL }}
+        checkmarx_username: ${{ secrets.CHECKMARX_USERNAME }}
+        checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+        checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
+        scanners: sast
+        params: --namespace=${{ github.repository_owner }} --repo-name=${{ github.event.repository.name }} --branch=${{ github.ref }} --cx-flow.filter-severity --cx-flow.filter-category --checkmarx.disable-clubbing=true --repo-url=${{ github.event.repository.url }}
+    # 上传 CodeQL/Security Alerts 报告
+    - name: 上传 SARIF 文件
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: cx.sarif

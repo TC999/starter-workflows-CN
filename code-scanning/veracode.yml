@@ -1,0 +1,56 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将启动 Veracode 静态分析管道扫描，返回一个 results.json 并转换为 SARIF 以上传为代码扫描警报
+
+name: Veracode Static Analysis Pipeline Scan
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+# 工作流程由一个或多个作业组成，可以按顺序或并行运行
+permissions:
+  contents: read
+
+jobs:
+  # 此工作流包含一个用于构建和提交管道扫描的作业，您需要根据需要自定义构建过程，并确保构建的构件用作管道扫描文件参数的文件输入
+  build-and-pipeline-scan:
+    # 作业将在其上运行的运行时类型
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 需要获取 Action 运行状态时才需要
+    runs-on: ubuntu-latest
+    steps:
+
+    # 将您的存储库检出到 $GITHUB_WORKSPACE 下，以便作业可以访问它，并将所有源代码复制到 ZIP 文件中以供分析提交。用您应用程序的构建步骤替换此部分
+    - uses: actions/checkout@v3
+      with:
+        repository: ''
+
+    - run: zip -r veracode-scan-target.zip ./
+
+    # 下载 Veracode 静态分析管道扫描 jar
+    - run: curl --silent --show-error --fail -O https://downloads.veracode.com/securityscan/pipeline-scan-LATEST.zip
+    - run: unzip -o pipeline-scan-LATEST.zip
+
+    - uses: actions/setup-java@v3
+      with:
+        java-version: 8
+        distribution: 'temurin'
+    - run: java -jar pipeline-scan.jar --veracode_api_id "${{secrets.VERACODE_API_ID}}" --veracode_api_key "${{secrets.VERACODE_API_KEY}}" --fail_on_severity="Very High, High" --file veracode-scan-target.zip
+      continue-on-error: true
+    - name: 将管道扫描输出转换为 SARIF 格式
+      id: convert
+      uses: veracode/veracode-pipeline-scan-results-to-sarif@ff08ae5b45d5384cb4679932f184c013d34da9be
+      with:
+        pipeline-results-json: results.json
+    - uses: github/codeql-action/upload-sarif@v2
+      with:
+        # SARIF 文件相对于存储库根目录的路径
+        sarif_file: veracode-results.sarif

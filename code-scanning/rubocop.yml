@@ -1,0 +1,50 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 从存储库中提取
+name: "Rubocop"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  rubocop:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+    - name: 检出存储库
+      uses: actions/checkout@v3
+
+    # 如果在自托管 runner 上运行，请检查是否符合要求
+    # 详见 https://github.com/ruby/setup-ruby#using-self-hosted-runners
+    - name: 设置 Ruby
+      uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
+      with:
+        ruby-version: 2.6
+
+    # 如果将 gem 添加到 Gemfile，则不需要此步骤
+    - name: 安装 Code Scanning 集成
+      run: bundle add code-scanning-rubocop --version 0.3.0 --skip-install
+
+    - name: 安装依赖项
+      run: bundle install
+
+    - name: 运行 Rubocop
+      run: |
+        bash -c "
+          bundle exec rubocop --require code_scanning --format CodeScanning::SarifFormatter -o rubocop.sarif
+          [[ $? -ne 2 ]]
+        "
+
+    - name: 上传 Sarif 输出
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: rubocop.sarif

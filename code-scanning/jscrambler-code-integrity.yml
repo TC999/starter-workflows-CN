@@ -1,0 +1,45 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 这是一个基本的工作流，帮助您开始使用 Jscrambler Code Integrity Action。
+# 它自动保护您的 JavaScript 应用程序，因此您可以在构建应用程序的新版本时运行它。
+# 使用此工作流需要 Jscrambler 账户。
+
+# 更多信息请访问：https://docs.jscrambler.com/latest/code-integrity/documentation/github-ci-integration
+
+name: Jscrambler Code Integrity
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: npm ci
+      - run: npm run build
+      - name: Jscrambler Code Integrity
+        id: jscrambler
+        # 完整的输入列表可以在此处找到：https://github.com/marketplace/actions/jscrambler#inputs
+        uses: jscrambler/code-integrity-actions/protect@ab65962a2ecffcc362b75a997e24a181d0bde5fb
+        with:
+          application-id: ${{ secrets.JSCRAMBLER_APPLICATION_ID }}  # 此值应在您的 Jscrambler 账户中创建
+          secret-key: ${{ secrets.JSCRAMBLER_SECRET_KEY }}          # 此值可在您的 Jscrambler 账户中找到
+          access-key: ${{ secrets.JSCRAMBLER_ACCESS_KEY }}          # 此值可在您的 Jscrambler 账户中找到
+          jscrambler-config-path: jscrambler.json                   # 从您的 Jscrambler 账户下载
+          files-src: |                                              # 要保护的文件列表
+            dist/**/*
+          files-dest: .

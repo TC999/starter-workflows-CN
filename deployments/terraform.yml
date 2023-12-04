@@ -1,0 +1,92 @@
+# 该工作流安装最新版本的Terraform CLI并配置Terraform CLI配置文件，其中包含Terraform Cloud（app.terraform.io）的API令牌。
+# 在拉取请求事件中，此工作流将运行 `terraform init`、`terraform fmt` 和 `terraform plan`（通过Terraform Cloud进行推测性计划）。
+# 在推送到 $default-branch 分支的事件中，将执行 `terraform apply`。
+
+# “hashicorp/setup-terraform”文档位置：https://github.com/hashicorp/setup-terraform
+
+# 若要使用此工作流，您需要完成以下设置步骤。
+
+# 1. 在此存储库的根目录中创建一个`main.tf`文件，其中包含`remote`后端和一个或多个定义的资源。
+#    示例 `main.tf`:
+#     # 远程后端的配置。
+#     terraform {
+#       backend "remote" {
+#         # Terraform Cloud组织的名称。
+#         organization = "example-organization"
+#
+#         # 用于存储Terraform状态文件的Terraform Cloud工作区的名称。
+#         workspaces {
+#           name = "example-workspace"
+#         }
+#       }
+#     }
+#
+#     # 一个什么也不做的示例资源。
+#     resource "null_resource" "example" {
+#       triggers = {
+#         value = "一个什么也不做的示例资源！"
+#       }
+#     }
+#
+
+# 2. 生成Terraform Cloud用户API令牌并将其存储为此存储库上的GitHub机密（例如TF_API_TOKEN）。
+#    文档：
+#      - https://www.terraform.io/docs/cloud/users-teams-organizations/api-tokens.html
+#      - https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets
+#
+# 3. 使用 `hashicorp/setup-terraform` GitHub Action 引用步骤中的GitHub机密。
+#    示例：
+#      - name: 设置Terraform
+#        uses: hashicorp/setup-terraform@v1
+#        with:
+#          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+name: 'Terraform'
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    environment: production
+
+    # 无论GitHub Actions runner是ubuntu-latest、macos-latest还是windows-latest，都使用Bash shell
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # 将存储库检出到GitHub Actions runner
+    - name: 检出
+      uses: actions/checkout@v3
+
+    # 安装最新版本的Terraform CLI并配置Terraform CLI配置文件，其中包含Terraform Cloud用户API令牌
+    - name: 设置Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    # 通过创建初始文件、加载任何远程状态、下载模块等，初始化新的或现有的Terraform工作目录
+    - name: Terraform Init
+      run: terraform init
+
+    # 检查所有Terraform配置文件是否符合规范格式
+    - name: Terraform Format
+      run: terraform fmt -check
+
+    # 为Terraform生成执行计划
+    - name: Terraform Plan
+      run: terraform plan -input=false
+
+      # 在推送到 $default-branch 时，根据Terraform配置文件构建或更改基础架构
+      # 注意：建议在存储库中设置一个要求的 "strict" 状态检查，用于 "Terraform Cloud"。有关详细信息，请参阅有关 "strict" 必需状态检查的文档：https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/$default-branch' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false

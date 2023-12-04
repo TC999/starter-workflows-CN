@@ -1,0 +1,198 @@
+# 这个工作流使用GitHub未认证的操作。
+# 这些由第三方提供，并受到独立的服务条款、隐私政策和支持文档的管理。
+
+# 💁 OpenShift Starter工作流将执行以下操作：
+# - 检出您的存储库
+# - 执行容器镜像构建
+# - 将构建的镜像推送到GitHub容器注册表（GHCR）
+# - 登录到您的OpenShift集群
+# - 从镜像创建一个OpenShift应用并将其暴露到互联网上
+
+# ℹ️ 使用以下步骤配置您的存储库和工作流：
+# 1. 访问OpenShift集群。请参阅 https://www.openshift.com/try
+# 2. 创建OPENSHIFT_SERVER和OPENSHIFT_TOKEN存储库机密。请参阅：
+#    - https://github.com/redhat-actions/oc-login#readme
+#    - https://docs.github.com/en/actions/reference/encrypted-secrets
+#    - https://cli.github.com/manual/gh_secret_set
+# 3. （可选）根据项目要求编辑顶层的 'env' 部分，如 '🖊️' 标注的部分。
+# 4. （可选）编辑 build-image 步骤以构建您的项目。
+#    默认构建类型是使用存储库根目录下的 Dockerfile，但可以替换为不同的文件、源到镜像构建或逐步 buildah 构建。
+# 5. 提交并推送工作流文件到默认分支以触发工作流运行。
+
+# 👋 访问我们的GitHub组织 https://github.com/redhat-actions/ 查看我们的操作并提供反馈。
+
+name: OpenShift
+
+env:
+  # 🖊️ 编辑您的存储库机密以登录到您的OpenShift集群并设置上下文。
+  # 请参阅 https://github.com/redhat-actions/oc-login#readme 了解如何检索这些值。
+  # 要获取永久令牌，请参阅 https://github.com/redhat-actions/oc-login/wiki/Using-a-Service-Account-for-GitHub-Actions
+  OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+  OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
+  # 🖊️ 编辑登录后设置 kube 上下文的命名空间。留空以使用用户的默认命名空间。
+  OPENSHIFT_NAMESPACE: ""
+
+  # 🖊️ 编辑为您的OpenShift应用设置名称，否则将生成默认名称。
+  APP_NAME: ""
+
+  # 🖊️ 编辑应用程序应该访问的端口。
+  # 如果容器镜像恰好公开了一个端口，则可以留空。
+  # 参阅 https://github.com/redhat-actions/oc-new-app 的 'port' 输入
+  APP_PORT: ""
+
+  # 🖊️ 编辑以更改镜像注册表设置。
+  # 支持GHCR、Quay.io和Docker Hub等注册表。
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  IMAGE_REGISTRY_USER: ${{ github.actor }}
+  IMAGE_REGISTRY_PASSWORD: ${{ github.token }}
+
+  # 🖊️ 编辑以指定容器镜像的自定义标签，否则将生成默认标签。
+  IMAGE_TAGS: ""
+
+on:
+  # https://docs.github.com/en/actions/reference/events-that-trigger-workflows
+  workflow_dispatch:
+  push:
+    # 编辑以在每次推送时构建和部署的分支上构建。
+    branches: [ $default-branch ]
+
+jobs:
+  # 🖊️ 如果您想在部署应用程序之前对项目运行漏洞检查，请编辑这部分。
+  # 请取消注释下面的CRDA扫描作业并在工作流中配置它。
+  #
+  # TODO: 确保从 'Actions' 选项卡添加 'CRDA Scan' 起始工作流。
+  # 添加新起始工作流的指南请访问 https://docs.github.com/en/github-ae@latest/actions/using-workflows/using-starter-workflows
+
+  crda-scan:
+    uses: ./.github/workflows/crda.yml
+    secrets:
+      CRDA_KEY: ${{ secrets.CRDA_KEY }}
+      # SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}       # 使用SNYK_TOKEN或CRDA_KEY
+
+  openshift-ci-cd:
+    # 🖊️ 如果您在上面使用了CRDA扫描步骤，请取消注释此行
+    # needs: crda-scan
+    name: 构建并部署到OpenShift
+    runs-on: ubuntu-20.04
+    environment: production
+
+    outputs:
+      ROUTE: ${{ steps.deploy-and-expose.outputs.route }}
+      SELECTOR: ${{ steps.deploy-and-expose.outputs.selector }}
+
+    steps:
+    - name: 检查所需的机密
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const secrets = {
+            OPENSHIFT_SERVER: `${{ secrets.OPENSHIFT_SERVER }}`,
+            OPENSHIFT_TOKEN: `${{ secrets.OPENSHIFT_TOKEN }}`,
+          };
+
+          const GHCR = "ghcr.io";
+          if (`${{ env.IMAGE_REGISTRY }}`.startsWith(GHCR)) {
+            core.info(`Image registry is ${GHCR} - no registry password required`);
+          }
+          else {
+            core.info("A registry password is required");
+            secrets["IMAGE_REGISTRY_PASSWORD"] = `${{ secrets.IMAGE_REGISTRY_PASSWORD }}`;
+          }
+
+          const missingSecrets = Object.entries(secrets).filter(([ name, value ]) => {
+            if (value.length === 0) {
+              core.error(`Secret "${name}" is not set`);
+              return true;
+            }
+            core.info(`✔️ Secret "${name}" is set`);
+            return false;
+          });
+
+          if (missingSecrets.length > 0) {
+            core.setFailed(`❌ At least one required secret is not set in the repository. \n` +
+              "You can add it using:\n" +
+              "GitHub UI: https://docs.github.com/en/actions/reference/encrypted-secrets#creating-encrypted-secrets-for-a-repository \n" +
+              "GitHub CLI: https://cli.github.com/manual/gh_secret_set \n" +
+              "Also, refer to https://github.com/redhat-actions/oc-login#getting-started-with-the-action-or-see-example");
+          }
+          else {
+            core.info(`✅ All the required secrets are set`);
+          }
+
+    - name: 检出存储库
+      uses: actions/checkout@v3
+
+    - name: 确定应用程序名称
+      if: env.APP_NAME == ''
+      run: |
+        echo "APP_NAME=$(basename $PWD)" | tee -a $GITHUB_ENV
+
+    - name: 确定镜像标签
+      if: env.IMAGE_TAGS == ''
+      run: |
+        echo "IMAGE_TAGS=latest ${GITHUB_SHA::12}" | tee -a $GITHUB_ENV
+
+    # https://github.com/redhat-actions/buildah-build#readme
+    - name: 从Dockerfile构建
+      id: build-image
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: ${{ env.APP_NAME }}
+        tags: ${{ env.IMAGE_TAGS }}
+
+        # 如果没有Dockerfile/Containerfile，请参阅 https://github.com/redhat-actions/buildah-build#scratch-build-inputs
+        # 或使用 https://github.com/redhat-actions/s2i-build 进行源到镜像构建。
+        # 或者，将其指向存储库根目录相对于的 Dockerfile/Containerfile。
+        dockerfiles: |
+          ./Dockerfile
+
+    # https://github.com/redhat-actions/push-to-registry#readme
+    - name: 推送到注册表
+      id: push-image
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ steps.build-image.outputs.image }}
+        tags: ${{ steps.build-image.outputs.tags }}
+        registry: ${{ env.IMAGE_REGISTRY }}
+        username: ${{ env.IMAGE_REGISTRY_USER }}
+        password: ${{ env.IMAGE_REGISTRY_PASSWORD }}
+
+    # 图像推送到的路径现在存储在 ${{ steps.push-image.outputs.registry-path }} 中
+
+    - name: 安装oc
+      uses: redhat-actions/openshift-tools-installer@v1
+      with:
+        oc: 4
+
+    # https://github.com/redhat-actions/oc-login#readme
+    - name: 登录到OpenShift
+      uses: redhat-actions/oc-login@v1
+      with:
+        openshift_server_url: ${{ env.OPENSHIFT_SERVER }}
+        openshift_token: ${{ env.OPENSHIFT_TOKEN }}
+        insecure_skip_tls_verify: true
+        namespace: ${{ env.OPENSHIFT_NAMESPACE }}
+
+    # 此步骤应创建部署、服务和路由以运行您的应用程序并将其暴露到互联网上。
+    # https://github.com/redhat-actions/oc-new-app#readme
+    - name: 创建和暴露应用程序
+      id: deploy-and-expose
+      uses: redhat-actions/oc-new-app@v1
+      with:
+        app_name: ${{ env.APP_NAME }}
+        image: ${{ steps.push-image.outputs.registry-path }}
+        namespace: ${{ env.OPENSHIFT_NAMESPACE }}
+        port: ${{ env.APP_PORT }}
+
+    - name: 打印应用程序URL
+      env:
+        ROUTE: ${{ steps.deploy-and-expose.outputs.route }}
+        SELECTOR: ${{ steps.deploy-and-expose.outputs.selector }}
+      run: |
+        [[ -n ${{ env.ROUTE }} ]] || (echo "在上一步中确定应用程序路由失败"; exit 1)
+        echo
+        echo "======================== 您的应用程序位于以下位置：========================"
+        echo ${{ env.ROUTE }}
+        echo "==================================================================================="
+        echo
+        echo "您的应用程序可以通过 \"oc delete all --selector='${{ env.SELECTOR }}'\" 关闭"

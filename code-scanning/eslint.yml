@@ -1,0 +1,46 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+# ESLint 是用于识别和报告 ECMAScript/JavaScript 代码中发现的模式的工具。
+# 更多详细信息请参阅 https://github.com/eslint/eslint 和 https://eslint.org
+
+name: ESLint
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  eslint:
+    name: 运行 ESLint 扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # 仅对私有存储库需要，由 github/codeql-action/upload-sarif 以获取操作运行状态
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 安装 ESLint
+        run: |
+          npm install eslint@8.10.0
+          npm install @microsoft/eslint-formatter-sarif@2.1.7
+
+      - name: 运行 ESLint
+        run: npx eslint .
+          --config .eslintrc.js
+          --ext .js,.jsx,.ts,.tsx
+          --format @microsoft/eslint-formatter-sarif
+          --output-file eslint-results.sarif
+        continue-on-error: true
+
+      - name: 将分析结果上传到 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: eslint-results.sarif
+          wait-for-processing: true

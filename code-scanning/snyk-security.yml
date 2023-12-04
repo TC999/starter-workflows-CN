@@ -1,0 +1,75 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 一个示例工作流，设置 Snyk 以分析完整的 Snyk 平台（Snyk 开源、Snyk 代码、
+# Snyk 容器和 Snyk 基础设施即代码）
+# 设置会安装 Snyk CLI - 有关可能的命令的详细信息，
+# 请参阅 https://docs.snyk.io/snyk-cli/cli-reference
+# 然后将 Snyk 代码的结果上传到 GitHub 安全代码扫描
+
+# 为了使用 Snyk 操作，您需要具有 Snyk API 令牌。
+# 详见 https://github.com/snyk/actions#getting-your-snyk-token
+# 或者您可以在 https://snyk.io/login 免费注册
+
+# 获取更多示例，包括如何将扫描限制为仅高危问题和在 PR 检查失败时终止，请参阅 https://github.com/snyk/actions/
+
+name: Snyk Security
+
+on:
+  push:
+    branches: [$default-branch, $protected-branches]
+  pull_request:
+    branches: [$default-branch]
+
+permissions:
+  contents: read
+
+jobs:
+  snyk:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 使用，以获取 Action 运行状态
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: 设置 Snyk CLI 以检查安全问题
+        # Snyk 可用于在检测到安全问题时中断构建。
+        # 在这种情况下，我们希望将 SAST 问题上传到 GitHub 代码扫描
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+
+        # 对于 Snyk 开源，您必须首先为应用程序的依赖项设置开发环境
+        # 例如，对于 Node
+        #- uses: actions/setup-node@v3
+        #  with:
+        #    node-version: 16
+
+        env:
+          # 这是您将需要使用 Snyk 帐户创建的 Snyk API 令牌的地方
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+        # 运行 Snyk 代码（SAST）分析并将结果上传到 GitHub。
+        # 使用 || true 以不中断流水线
+      - name: 运行 Snyk 代码测试
+        run: snyk code test --sarif > snyk-code.sarif # || true
+
+        # 运行 Snyk 开源（SCA）分析并将结果上传到 Snyk。
+      - name: 运行 Snyk 开源监视
+        run: snyk monitor --all-projects
+
+        # 运行 Snyk 基础设施即代码（IaC）分析并将结果上传到 Snyk。
+        # 使用 || true 以不中断流水线。
+      - name: 运行 Snyk IaC 测试和报告
+        run: snyk iac test --report # || true
+
+        # 构建用于测试的 Docker 镜像
+      - name: 构建 Docker 镜像
+        run: docker build -t your/image-to-test .
+        # 运行 Snyk 容器（容器和 SCA）分析并将结果上传到 Snyk。
+      - name: 运行 Snyk 容器监视
+        run: snyk container monitor your/image-to-test --file=Dockerfile
+
+        # 将 Snyk 代码结果上传到 GitHub 代码扫描选项卡
+      - name: 上传结果到 GitHub 代码扫描
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk-code.sarif

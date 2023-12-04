@@ -1,0 +1,35 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+name: tfsec
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  tfsec:
+    name: 运行 tfsec SARIF 报告
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: 克隆仓库
+        uses: actions/checkout@v3
+
+      - name: 运行 tfsec
+        uses: aquasecurity/tfsec-sarif-action@9a83b5c3524f825c020e356335855741fd02745f
+        with:
+          sarif_file: tfsec.sarif
+
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          # SARIF 文件的相对于存储库根目录的路径
+          sarif_file: tfsec.sarif

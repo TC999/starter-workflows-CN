@@ -1,0 +1,53 @@
+# 此工作流使用未由 GitHub 认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# NowSecure：移动安全专家 <https://www.nowsecure.com/>。
+#
+# 若要使用此工作流，您必须拥有 NowSecure 平台的令牌。如果您是 NowSecure 的客户，
+# 您可以在 NowSecure 平台中找到它。
+#
+# 如果您 *不是* NowSecure 的客户，请单击此处注册免费试用以获取访问权限：
+# <https://bit.ly/ns-git-sbom>。
+#
+# 操作步骤：
+#
+# 1. 在存储库的设置中，单击 "Secrets"，然后单击 "New repository secret"。将密钥命名为 "NS_TOKEN"，
+#    并粘贴您的平台令牌。如果您没有平台令牌，或希望为 GitHub 创建一个新的令牌，请访问
+#    NowSecure 平台，然后转到 "Profile & Preferences" 创建一个标有 "GitHub" 的令牌。
+#
+# 2. 按照下面的带有注释的工作流程，并进行必要的修改，然后将工作流保存到存储库中，
+#    并在操作运行后查看 "Insights" 面板中的 "Dependency graph" 选项卡。
+
+name: "NowSecure Mobile SBOM"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面列出的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  nowsecure:
+    name: NowSecure 移动 SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 构建您的应用程序
+        run: ./gradlew assembleDebug              # 更新为构建 Android 或 iOS 应用程序的命令
+
+      - name: NowSecure 上传应用
+        uses: nowsecure/nowsecure-sbom-action@ecb731b6f17a83fa53f756f9dae2ec7034c5ed7c
+        with:
+          token: ${{ secrets.NS_TOKEN }}
+          app_file: app-debug.apk                 # 更新为您的 .ipa 或 .apk 文件的路径
+          group_id: {{ groupId }}                 # 更新为您所需的平台组 ID

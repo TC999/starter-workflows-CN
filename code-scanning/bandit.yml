@@ -1,0 +1,50 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# Bandit 是一个安全性代码检查工具，旨在查找 Python 代码中的常见安全问题。
+# 此操作将在您的代码库上运行 Bandit。
+# 扫描结果将显示在存储库的安全选项卡下。
+
+# https://github.com/marketplace/actions/bandit-scan 是 ISC 许可的，由 abirismyname 提供
+# https://pypi.org/project/bandit/ 是 Apache v2.0 许可的，由 PyCQA 提供
+
+name: Bandit
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  bandit:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Bandit 扫描
+        uses: shundor/python-bandit-scan@9cc5aa4a006482b8a7f91134412df6772dbda22c
+        with: # 可选参数
+          # 即使发现问题也退出为 0
+          exit_zero: true # 可选，默认值为 DEFAULT
+          # 存储库的 Github 令牌（由 Github 自动创建）
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 获取 PR 信息所需。
+          # 要在其上运行 bandit 的文件或目录
+          # path: # 可选，默认值为 .
+          # 仅报告给定严重级别或更高级别的问题。可以是 LOW、MEDIUM 或 HIGH。默认值是 UNDEFINED（所有问题）
+          # level: # 可选，默认值为 UNDEFINED
+          # 仅报告给定置信度级别或更高级别的问题。可以是 LOW、MEDIUM 或 HIGH。默认值是 UNDEFINED（所有问题）
+          # confidence: # 可选，默认值为 UNDEFINED
+          # 要从扫描中排除的逗号分隔的路径列表（支持 glob 模式）（注意，这些路径是在配置文件中提供的排除路径的基础上提供的）（默认值：.svn,CVS,.bzr,.hg,.git,__pycache__,.tox,.eggs,*.egg）
+          # excluded_paths: # 可选，默认值为 DEFAULT
+          # 要跳过的逗号分隔的测试 ID 列表
+          # skips: # 可选，默认值为 DEFAULT
+          # 提供命令行参数的 .bandit 文件的路径
+          # ini_path: # 可选，默认值为 DEFAULT
+

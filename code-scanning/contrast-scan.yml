@@ -1,0 +1,51 @@
+# 该工作流使用GitHub未经认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将在构建的构件上启动 Contrast Scan，并随后将结果 SARIF 上传到 GitHub。
+# 由于 Contrast Scan 被设计为针对可部署的构件运行，您需要构建一个将传递给 Contrast Scan 操作的构件。
+# Contrast Scan 目前支持 Java、JavaScript 和 .NET 构件。
+# 有关 Contrast Scan GitHub Action 的更多信息，请参见此处：https://github.com/Contrast-Security-OSS/contrastscan-action
+
+# 先决条件：
+# 所有与 Contrast 相关的帐户机密都应配置为 GitHub 机密，以作为 Contrast Scan 操作的输入传递。
+# 所需的机密包括 CONTRAST_API_KEY、CONTRAST_ORGANIZATION_ID 和 CONTRAST_AUTH_HEADER。
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+name: Scan analyze workflow #扫描分析工作流
+jobs:
+  build-and-scan:
+    permissions:
+        contents: read # 用于 actions/checkout
+        security-events: write # 用于 github/codeql-action/upload-sarif
+        actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+    # 检出项目
+    steps:
+    - uses: actions/checkout@v3
+    # 由于 Contrast Scan 被设计为针对可部署的构件运行，因此构建构件的步骤应放在这里。
+    # -name: 构建项目
+    # ...
+    # 扫描构件
+    - name: Contrast Scan 操作
+      uses: Contrast-Security-OSS/contrastscan-action@7352a45d9678ec8a434cf061b07ffb51c1e351a1
+      with:
+        artifact: mypath/target/myartifact.jar # 用您构建的构件的路径替换此路径
+        apiKey: ${{ secrets.CONTRAST_API_KEY }}
+        orgId: ${{ secrets.CONTRAST_ORGANIZATION_ID }}
+        authHeader: ${{ secrets.CONTRAST_AUTH_HEADER }}
+    # 将结果上传到 GitHub
+    - name: 上传 SARIF 文件
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: results.sarif # 文件名必须为 'results.sarif'，因为这是 Github Action 将输出的文件名

@@ -1,0 +1,65 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# EthicalCheck 解决了在开发和生产中持续进行 API 安全测试的迫切需求。
+
+# EthicalCheck 提供行业内唯一的免费和自动化的 API 安全测试服务，使用 OWASP API 列表发现安全漏洞。
+# 开发人员依赖 EthicalCheck 来评估每个更新和发布，确保没有带有可利用漏洞的 API 进入生产环境。
+
+# 您开发应用程序和 API，我们为您提供完整和持续的安全测试，加速开发。
+
+# 通过 EthicalCheck，了解您的 API 和应用程序是安全的-我们的免费和自动化的 API 安全测试服务。
+
+# EthicalCheck 如何工作？
+# EthicalCheck 通过以下简单步骤执行。
+# 1. 安全测试。
+# 提供您的 OpenAPI 规范或从公共 Postman 集合 URL 开始。
+# EthicalCheck 立即检查您的 API，并为安全测试创建 API 端点映射。
+# 然后，它自动创建数百个非侵入性的安全测试，全面测试您的 API 的身份验证、授权和 OWASP 漏洞，其中包括 OAuth 2.0、JWT、速率限制等 OWASP API 安全类别。
+
+# 2. 报告。
+# EthicalCheck 生成包含所有测试端点、覆盖图、异常和漏洞的安全测试报告。
+# 漏洞已经过全面分析，其中包含 CVSS 分数、严重性、端点信息和 OWASP 标记。
+
+# 这是一个入门工作流，帮助您开始使用 EthicalCheck Actions
+
+name: EthicalCheck-Workflow
+
+# 控制工作流何时运行
+on:
+  # 触发工作流的推送或拉取请求事件，但仅适用于 $default-branch 分支
+  # 根据您的 DevSecOps 流程自定义触发事件。
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+  # 允许您从“Actions”选项卡手动运行此工作流
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  Trigger_EthicalCheck:
+    permissions:
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅对私有存储库需要，由 github/codeql-action/upload-sarif 以获取操作运行状态
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "EthicalCheck 免费和自动化的 API 安全测试服务"
+        uses: apisec-inc/ethicalcheck-action@005fac321dd843682b1af6b72f30caaf9952c641
+        with:
+          # OpenAPI 规范 URL 或 Swagger 路径或公共 Postman 集合 URL。
+          oas-url: "http://netbanking.apisec.ai:8080/v2/api-docs"
+          # 将渗透测试报告发送到的电子邮件地址。
+          email: "xxx@apisec.ai"
+          sarif-result-file: "ethicalcheck-results.sarif"
+
+      - name: "将 sarif 文件上传到存储库"
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ./ethicalcheck-results.sarif

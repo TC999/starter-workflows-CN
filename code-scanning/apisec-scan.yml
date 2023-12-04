@@ -1,0 +1,69 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# APIsec 解决了在 API 到达生产环境之前确保其安全性的迫切需求。
+# APIsec 提供行业中唯一的自动化和持续的 API 测试平台，揭示 API 中的安全漏洞和逻辑缺陷。
+# 客户依赖于 APIsec 来评估每个更新和发布，确保没有带有漏洞的 API 进入生产环境。
+
+# 如何开始使用 APIsec.ai
+# 1. 在 https://www.apisec.ai/request-a-demo 安排演示。
+#
+# 2. 在 https://cloud.apisec.ai/#/signup 注册您的帐户。
+#
+# 3. 注册您的 API。查看视频（https://www.youtube.com/watch?v=MK3Xo9Dbvac）以快速上手 APIsec。
+#
+# 4. 从 APIsec 项目 -> 配置 -> 集成 -> CI-CD -> GitHub Actions 获取 GitHub Actions 扫描属性。
+#
+# apisec-run-scan
+#
+# 此操作触发 APIsec 中注册的项目的按需扫描。
+# 如果您的 GitHub 帐户允许代码扫描警报，然后您可以上传此操作生成的 sarif 文件以显示扫描结果。
+# 否则，您可以在 APIsec 平台上项目主页查看扫描结果。
+# 成功完成操作时，控制台上还会显示查看扫描结果的链接。
+
+# 这是一个入门工作流，帮助您开始使用 APIsec-Scan 操作
+
+name: APIsec
+
+# 控制工作流何时运行
+on:
+  # 在推送或拉取请求事件时触发工作流，但仅对 $default-branch 分支有效
+  # 根据您的 DevSecOps 流程自定义触发事件。
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+  # 允许您从操作选项卡手动运行此工作流
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+jobs:
+
+  Trigger_APIsec_scan:
+    permissions:
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+
+    steps:
+       - name: APIsec 扫描
+         uses: apisec-inc/apisec-run-scan@025432089674a28ba8fb55f8ab06c10215e772ea
+         with:
+          # 用于执行扫描的 APIsec 用户名
+          apisec-username: ${{ secrets.apisec_username }}
+          # 用于执行扫描的 APIsec 用户的密码
+          apisec-password: ${{ secrets.apisec_password }}
+          # 进行安全扫描的项目名称
+          apisec-project: "VAmPI"
+          # sarif 格式结果文件的名称。仅在提供此属性时才写入文件。
+          sarif-result-file: "apisec-results.sarif"
+       - name: 导入结果
+         uses: github/codeql-action/upload-sarif@v2
+         with:
+          sarif_file: ./apisec-results.sarif

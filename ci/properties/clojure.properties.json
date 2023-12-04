@@ -1,0 +1,6 @@
+{
+    "name": "Clojure",
+    "description": "使用 Leiningen 构建和测试 Clojure 项目。",
+    "iconName": "clojure",
+    "categories": ["持续集成", "Clojure", "Java"]
+}

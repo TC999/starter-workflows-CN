@@ -1,0 +1,62 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流可帮助您触发 SonarQube 对代码的分析，并将发现的漏洞填充到 GitHub Code Scanning 警报中。
+# （此功能从 SonarQube 9.7、Developer Edition 以及更高版本开始可用）
+
+# 1. 确保您向 SonarQube 添加了有效的 GitHub 配置（Administration > DevOps platforms > GitHub）
+
+# 2. 在 SonarQube 上导入项目
+#     * 通过单击主页上的“Create project”将存储库添加为新项目。
+#
+# 3. 将 GitHub Actions 作为 CI 并按照教程操作
+#     * a. 生成新令牌并将其添加到 GitHub 存储库的 Secrets 中，使用名称 SONAR_TOKEN
+#          （在 SonarQube 上，点击右上角的头像 > My account > Security 或向管理员询问）
+#
+#     * b. 将 SonarQube 主机 URL 复制/粘贴到 GitHub 存储库的 Secrets 中，使用名称 SONAR_HOST_URL
+#
+#     * c. 复制/粘贴项目密钥到下面的 args 参数
+#          （您可以通过教程或点击项目主页右上角的“Project Information”找到此信息）
+
+# 欢迎查看我们的文档（https://docs.sonarqube.org/latest/analysis/github-integration/）
+# 或在需要帮助时联系我们的社区论坛（https://community.sonarsource.com/c/sq/10）
+
+name: SonarQube analysis
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: read # 允许 SonarQube 用分析结果装饰 PR
+
+jobs:
+  Analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 使用 SonarQube 进行分析
+
+        # 您可以锁定确切的提交或版本。
+        # uses: SonarSource/sonarqube-scan-action@v1.1.0
+        uses: SonarSource/sonarqube-scan-action@7295e71c9583053f5bf40e9d4068a0c974603ec8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 需要获取 PR 信息
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # 在 SonarQube 上生成令牌，将其添加到此存储库的 Secrets 中，名称为 SONAR_TOKEN（Settings > Secrets > Actions > 添加新存储库 Secrets）
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # 将您的实例的 URL 添加到此存储库的 Secrets 中，名称为 SONAR_HOST_URL（Settings > Secrets > Actions > 添加新存储库 Secrets）
+        with:
+          # Sonarcloud 扫描器的其他参数
+          args:
+            # 您的项目的唯一键。您可以在 SonarQube > [my project] > Project Information（右上角菜单）中找到它
+            # 强制执行
+            -Dsonar.projectKey=
+            # 包含主源文件的目录的逗号分隔路径。
+            #-Dsonar.sources= # 可选，默认是项目基本目录
+            # 当需要在与启动目录不同的目录中进行分析时
+            #-Dsonar.projectBaseDir= # 可选，默认是 .
+            # 包含测试源文件的目录的逗号分隔路径。
+            #-Dsonar.tests= # 可选。有关代码覆盖率的更多信息，请参阅 https://docs.sonarcloud.io/enriching/test-coverage/overview/
+            # 为客户端和服务器端分析日志添加更多详细信息，激活扫描器的 DEBUG 模式，并将客户端环境变量和系统属性添加到分析报告处理的服务器端日志中。
+            #-Dsonar.verbose= # 可选，默认是 false

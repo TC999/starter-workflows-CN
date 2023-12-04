@@ -1,0 +1,38 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# Sobelow 是用于 Phoenix 框架的面向安全的静态分析工具。https://sobelow.io/
+#
+# 要使用此工作流，必须启用 GitHub 高级安全性（GHAS）以用于您的存储库。
+#
+# 说明：
+# 2. 按照下面的注释工作流，并进行必要的修改，然后将工作流保存到您的存储库
+#    并在操作运行后查看“Security”选项卡。
+name: Sobelow
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  security-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 使用，以获取 Action 运行状态
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - id: run-action
+        uses: sobelow/action@1afd6d2cae70ae8bd900b58506f54487ed863912
+      - name: 上传报告
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

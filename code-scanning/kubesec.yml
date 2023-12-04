@@ -1,0 +1,39 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+name: Kubesec
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  lint:
+    name: Kubesec
+    runs-on: ubuntu-20.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: 检查代码
+        uses: actions/checkout@v3
+
+      - name: 运行 kubesec 扫描器
+        uses: controlplaneio/kubesec-action@43d0ddff5ffee89a6bb9f29b64cd865411137b14
+        with:
+          input: file.yaml # 在此指定要扫描的配置文件
+          format: template
+          template: template/sarif.tpl
+          output: kubesec-results.sarif
+          exit-code: "0"
+
+      - name: 上传 Kubesec 扫描结果到 GitHub 安全选项卡
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: kubesec-results.sarif

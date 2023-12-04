@@ -1,0 +1,57 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 此工作流检查代码，执行 Codacy 安全扫描，并将结果集成到 GitHub 高级安全代码扫描功能中。
+# 有关 Codacy 安全扫描操作的使用和参数的更多信息，请参见
+# https://github.com/codacy/codacy-analysis-cli-action。
+# 有关 Codacy Analysis CLI 的一般信息，请参见
+# https://github.com/codacy/codacy-analysis-cli。
+
+name: Codacy Security Scan
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  codacy-security-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 只有对于私有仓库，由 github/codeql-action/upload-sarif 获取操作运行状态时才需要
+    name: Codacy Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      # 将仓库检出到 GitHub Actions 运行器
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      # 执行 Codacy Analysis CLI 并生成在分析期间识别的安全问题的 SARIF 输出
+      - name: 运行 Codacy Analysis CLI
+        uses: codacy/codacy-analysis-cli-action@d840f886c4bd4edc059706d09c6a1586111c540b
+        with:
+          # 查看 https://github.com/codacy/codacy-analysis-cli#project-token 以获取 Codacy 仓库中的项目令牌
+          # 也可以省略令牌并运行支持默认配置的工具
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          verbose: true
+          output: results.sarif
+          format: sarif
+          # 调整非安全问题的严重程度
+          gh-code-scanning-compat: true
+          # 强制 0 退出代码以允许生成 SARIF 文件
+          # 这将把 PR 拒绝的控制权移交给 GitHub 方面
+          max-allowed-issues: 2147483647
+
+      # 上传在前一步骤生成的 SARIF 文件
+      - name: 上传 SARIF 结果文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

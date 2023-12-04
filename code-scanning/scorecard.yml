@@ -1,0 +1,66 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+name: 评分卡供应链安全
+on:
+  # 用于分支保护检查。仅支持默认分支。请参阅 https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection
+  branch_protection_rule:
+  # 为了保证维护检查偶尔更新。请参阅 https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained
+  schedule:
+    - cron: $cron-weekly
+  push:
+    branches: [ $default-branch ]
+
+# 声明默认权限为只读。
+permissions: read-all
+
+jobs:
+  analysis:
+    name: 评分卡分析
+    runs-on: ubuntu-latest
+    permissions:
+      # 需要上传结果到代码扫描仪仪表板。
+      security-events: write
+      # 需要发布结果并获取徽章（请参阅下面的 publish_results）。
+      id-token: write
+      # 如果在私有存储库中安装，取消注释下面的权限。
+      # contents: read
+      # actions: read
+
+    steps:
+      - name: "检出代码"
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
+        with:
+          persist-credentials: false
+
+      - name: "运行分析"
+        uses: ossf/scorecard-action@e38b1902ae4f44df626f11ba0734b14fb91f8f86 # v2.1.2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # （可选）"write" PAT 令牌。如果：
+          # - 您希望在*公共*存储库上启用分支保护检查，或
+          # - 您在*私有*存储库上安装 Scorecard
+          # 要创建 PAT，请按照 https://github.com/ossf/scorecard-action#authentication-with-pat 中的步骤。
+          # repo_token: ${{ secrets.SCORECARD_TOKEN }}
+
+          # 对于公共存储库：
+          #   - 将结果发布到 OpenSSF REST API，以便消费者轻松访问
+          #   - 允许存储库包含 Scorecard 徽章。
+          #   - 请参阅 https://github.com/ossf/scorecard-action#publishing-results。
+          # 对于私有存储库：
+          #   - `publish_results` 将始终设置为 `false`，无论此处输入的值是什么。
+          publish_results: true
+
+      # 上传结果作为工件（可选）。注释掉将禁用将运行结果以 SARIF 格式上传到存储库 Actions 标签的操作。
+      - name: "上传工件"
+        uses: actions/upload-artifact@3cea5372237819ed00197afe530f5a7ea3e805c8 # v3.1.0
+        with:
+          name: SARIF 文件
+          path: results.sarif
+          retention-days: 5
+
+      # 将结果上传到 GitHub 的代码扫描仪仪表板。
+      - name: "上传到代码扫描"
+        uses: github/codeql-action/upload-sarif@17573ee1cc1b9d061760f3a006fc4aac4f944fd5 # v2.2.4
+        with:
+          sarif_file: results.sarif

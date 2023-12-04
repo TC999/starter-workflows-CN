@@ -1,0 +1,63 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流可帮助您触发 SonarCloud 对代码的分析，并将发现的漏洞填充到 GitHub Code Scanning 警报中。
+# 适用于开源项目。
+
+# 1. 使用 GitHub 帐户登录到 SonarCloud.io
+
+# 2. 在 SonarCloud 上导入项目
+#     * 首先添加 GitHub 组织，然后将存储库添加为新项目。
+#     * 请注意，许多语言都符合自动分析的条件，这意味着分析将自动启动，无需设置 GitHub Actions。
+#     * 可在 Administration > Analysis Method 中更改此行为。
+
+# 3. 按照 SonarCloud 中的产品教程操作
+#     * a. 复制/粘贴项目密钥和组织密钥到下面的 args 参数
+#          （您可以在 SonarCloud 上找到此信息。点击左下角的“Information”）
+#
+#     * b. 生成新令牌并将其添加到 GitHub 存储库的 Secrets 中，使用名称 SONAR_TOKEN
+#          （在 SonarCloud 上，点击右上角的头像 > My account > Security，
+#           或直接访问 https://sonarcloud.io/account/security/）
+
+# 欢迎查看我们的文档（https://docs.sonarcloud.io/getting-started/github/）
+# 或在需要帮助时联系我们的社区论坛（https://community.sonarsource.com/c/help/sc/9）
+
+name: SonarCloud analysis
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: read # 允许 SonarCloud 用分析结果装饰 PR
+
+jobs:
+  Analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 使用 SonarCloud 进行分析
+
+        # 您可以锁定确切的提交或版本。
+        # uses: SonarSource/sonarcloud-github-action@de2e56b42aa84d0b1c5b622644ac17e505c9a049
+        uses: SonarSource/sonarcloud-github-action@de2e56b42aa84d0b1c5b622644ac17e505c9a049
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 需要获取 PR 信息
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # 在 Sonarcloud.io 上生成令牌，将其添加到此存储库的 Secrets 中，名称为 SONAR_TOKEN（Settings > Secrets > Actions > 添加新存储库 Secrets）
+        with:
+          # Sonarcloud 扫描器的其他参数
+          args:
+            # 项目和组织的唯一键。您可以在 SonarCloud > Information 中找到它们（左下角菜单）
+            # 强制执行
+            -Dsonar.projectKey=
+            -Dsonar.organization=
+            # 包含主源文件的目录的逗号分隔路径。
+            #-Dsonar.sources= # 可选，默认是项目基本目录
+            # 当需要在与启动目录不同的目录中进行分析时
+            #-Dsonar.projectBaseDir= # 可选，默认是 .
+            # 包含测试源文件的目录的逗号分隔路径。
+            #-Dsonar.tests= # 可选。有关代码覆盖率的更多信息，请参阅 https://docs.sonarcloud.io/enriching/test-coverage/overview/
+            # 为客户端和服务器端分析日志添加更多详细信息，激活扫描器的 DEBUG 模式，并将客户端环境变量和系统属性添加到分析报告处理的服务器端日志中。
+            #-Dsonar.verbose= # 可选，默认是 false

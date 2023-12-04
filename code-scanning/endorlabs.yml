@@ -1,0 +1,50 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+name: Endor Labs
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  scan:
+    permissions:
+      security-events: write # 用于将 sarif 文件上传到 GitHub
+      contents: read # 由 actions/checkout 用于检出私有存储库
+      actions: read # 私有存储库上传 sarif 文件所需。需要 GitHub 高级安全许可证。
+      id-token: write # 用于 Endor Labs 的无密钥身份验证
+    runs-on: ubuntu-latest
+    steps:
+    - name: "检出存储库"
+      uses: actions/checkout@v3
+    #### 软件包构建说明
+    ### 使用此部分定义软件包的构建步骤。
+    ### 在可能的情况下，Endor Labs 会为您构建软件包，但必须提供所需的构建工具。
+    # - name: 设置 Java
+    #   uses: actions/setup-java@v3
+    #   with:
+    #     distribution: 'microsoft'
+    #     java-version: '17'
+    # - name: 构建软件包
+    #   run: mvn clean install
+    - name: "Endor Labs 扫描拉取请求"
+      if: github.event_name == 'pull_request'
+      uses: endorlabs/github-action@b51bd06466b545f01a6ac788e3e1147695d3936c
+      with:
+        namespace: "example" # 修改命名空间以符合 Endor Labs 租户命名空间。
+        sarif_file: findings.sarif
+    - name: "Endor Labs 扫描监视器"
+      if: github.event_name == 'push'
+      uses: endorlabs/github-action@b51bd06466b545f01a6ac788e3e1147695d3936c
+      with:
+        namespace: "example" # 修改命名空间以符合 Endor Labs 租户命名空间。
+        ci_run: "false"
+        sarif_file: findings.sarif
+    - name: "将 SARIF 上传到 GitHub"
+      uses: github/codeql-action/upload-sarif@9885f86fab4879632b7e44514f19148225dfbdcd
+      with:
+        sarif_file: findings.sarif

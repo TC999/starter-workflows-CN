@@ -1,0 +1,59 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+#
+# 此工作流启动您的 API 并使用 ForAllSecure Mayhem for API 进行模糊测试，
+# 以在达到生产环境之前发现可靠性、性能和安全性问题。
+#
+# 要使用此工作流，您需要：
+#
+# 1. 在 https://mayhem4api.forallsecure.com/signup 创建 Mayhem for API 帐户
+#
+# 2. 创建一个服务帐户令牌 `mapi organization service-account create
+#    <org-name> <service-account-name>`
+#
+# 3. 将服务帐户令牌作为 GitHub 中的秘密添加，命名为 "MAPI_TOKEN"
+#
+# 4. 更新 "Start your API" 步骤，以在启动 Mayhem for API 扫描之前在后台运行您的 API，并更新 `api-url` 和 `api-spec` 字段。
+#
+# 如果有任何问题，请联系我们 mayhem4api@forallsecure.com
+
+name: "Mayhem for API"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+
+jobs:
+  mayhem-for-api:
+    name: Mayhem for API
+    # Mayhem for API 在 Linux、Mac 和 Windows 上运行
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v3
+
+      # 在后台运行您的 API。理想情况下，API 将以调试模式运行，并在 "500 Internal Server Error" 响应上发送堆栈跟踪
+      # （在生产环境中请勿执行此操作！）
+      - name: 启动您的 API
+        run: ./run_your_api.sh & # <- ✏️ 更新此处
+
+      - name: Mayhem for API
+        uses: ForAllSecure/mapi-action@193b709971cc377675e33284aecbf9229853e010
+        continue-on-error: true
+        with:
+          mapi-token: ${{ secrets.MAPI_TOKEN }}
+          api-url: http://localhost:8080 # <- ✏️ 更新此处
+          api-spec: http://localhost:8080/openapi.json # <- ✏️ 更新此处
+          duration: 60
+          sarif-report: mapi.sarif
+
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: mapi.sarif

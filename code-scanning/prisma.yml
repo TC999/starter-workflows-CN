@@ -1,0 +1,56 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 一个示例工作流，使用 Prisma Cloud Infrastructure as Code Scan 操作检查存储库中的 IaC 文件中的安全问题。
+# 结果将上传到 GitHub 安全性代码扫描
+
+# 有关操作配置的更多详细信息，请参见 https://github.com/prisma-cloud-shiftleft/iac-scan-action
+
+name: Prisma Cloud IaC Scan
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  prisma_cloud_iac_scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+    name: 运行 Prisma Cloud IaC Scan 检查
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - id: iac-scan
+        name: 在存储库中运行 CFT 文件扫描
+        uses: prisma-cloud-shiftleft/iac-scan-action@53278c231c438216d99b463308a3cbed351ba0c3
+        with:
+          # 您将需要 Prisma Cloud API 访问令牌
+          # 更多详细信息请参见 https://github.com/prisma-cloud-shiftleft/iac-scan-action
+          prisma_api_url: ${{ secrets.PRISMA_CLOUD_API_URL }}
+          access_key: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
+          secret_key: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
+          # Prisma Cloud 上的扫描源由其名称唯一标识
+          asset_name: 'my-asset-name'
+          # 服务需要知道正在扫描的 IaC 的类型
+          template_type: 'CFT'
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        # 结果仅在成功或失败时生成
+        # 这是必需的，因为 GitHub 默认情况下不会在前一个步骤失败时运行下一个步骤。
+        # 替代方案是在前一个步骤中添加 `continue-on-error: true`
+        if: success() || failure()
+        with:
+          # SARIF 日志文件名可以在扫描操作中配置
+          # 因此最好从步骤输出中读取文件名
+          sarif_file: ${{ steps.iac-scan.outputs.iac_scan_result_sarif_path }}

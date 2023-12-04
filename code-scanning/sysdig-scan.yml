@@ -1,0 +1,59 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+name: Sysdig - 构建、扫描、推送并上传 SARIF 报告
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+
+    permissions:
+      checks: write # 用于 sysdiglabs/scan-action 发布检查
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅对私有存储库需要由 github/codeql-action/upload-sarif 获取操作运行状态
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: 构建 Docker 镜像
+      # 标记要构建的镜像
+      # 如果需要，请将 ${{ github.repository }} 变量更改为其他镜像名称，但不要忘记同时更改上面的 image-tag
+      run: docker build . --file Dockerfile --tag ${{ github.repository }}:latest
+
+    - name: Sysdig Secure Inline Scan
+      id: scan
+      uses: sysdiglabs/scan-action@768d7626a14897e0948ea89c8437dd46a814b163
+      with:
+        # 要分析的镜像标签。
+        # 如果需要，请将 ${{ github.repository }} 变量更改为其他镜像名称，但不要忘记同时更改上面的 image-tag
+        image-tag: ${{ github.repository }}:latest
+        # Sysdig 扫描身份验证的 API 令牌
+        sysdig-secure-token: ${{ secrets.SYSDIG_SECURE_TOKEN}}
+        # Sysdig 安全端点。请阅读：https://docs.sysdig.com/en/docs/administration/saas-regions-and-ip-ranges/
+        # 美东 https://secure.sysdig.com
+        # 美西 https://us2.app.sysdig.com
+        # 欧洲 https://eu1.app.sysdig.com
+        sysdig-secure-url: https://us2.app.sysdig.com
+        dockerfile-path: ./Dockerfile
+        input-type: docker-daemon
+        ignore-failed-scan: true
+        # Sysdig 内联扫描需要特权权限
+        run-as-user: root
+
+    - uses: github/codeql-action/upload-sarif@v2
+      # 上传 SARIF 文件
+      if: always()
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarifReport }}

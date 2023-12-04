@@ -1,0 +1,64 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+#
+# 查找更多信息：
+# https://github.com/microsoft/msvc-code-analysis-action
+
+name: Microsoft C++ Code Analysis
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+env:
+  # CMake 构建目录的路径。
+  build: '${{ github.workspace }}/build'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在需要时，由 github/codeql-action/upload-sarif 用于获取 Action 运行状态
+    name: Analyze
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出存储库
+        uses: actions/checkout@v3
+
+      - name: 配置 CMake
+        run: cmake -B ${{ env.build }}
+
+      # 不需要构建，除非使用了生成的源文件
+      # - name: 构建 CMake
+      #   run: cmake --build ${{ env.build }}
+
+      - name: 初始化 MSVC 代码分析
+        uses: microsoft/msvc-code-analysis-action@04825f6d9e00f87422d6bf04e1a38b1f3ed60d99
+        # 提供唯一的 ID 以访问 SARIF 输出路径
+        id: run-analysis
+        with:
+          cmakeBuildDirectory: ${{ env.build }}
+          # 规则集文件，确定将运行哪些检查
+          ruleset: NativeRecommendedRules.ruleset
+
+      # 将 SARIF 文件上传到 GitHub 代码扫描警报
+      - name: 上传 SARIF 到 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.run-analysis.outputs.sarif }}
+
+      # 将 SARIF 文件作为工件上传，以便下载和查看
+      # - name: 将 SARIF 作为工件上传
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: sarif-file
+      #     path: ${{ steps.run-analysis.outputs.sarif }}

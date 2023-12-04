@@ -1,0 +1,58 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# 🦅 STACKHAWK        https://stackhawk.com
+#
+# StackHawk HawkScan 操作使将动态应用程序安全测试 (DAST) 集成到 CI 流水线中变得轻松。请查看入门指南（https://docs.stackhawk.com/hawkscan/），
+# 以快速了解如何使用 StackHawk。
+#
+# 要使用此工作流，您必须：
+#
+# 1. 创建 API 密钥和应用程序：在 https://app.stackhawk.com 注册一个免费的 StackHawk 帐户以获取 API 密钥，
+#    并在该站点创建您的第一个应用程序和配置文件。
+#
+# 2. 将 API 密钥保存为 Secret：将您的 API 密钥保存为名为 HAWK_API_KEY 的 GitHub Secret。
+#
+# 3. 添加配置文件：将您的 stackhawk.yml 配置文件添加到存储库目录的基础目录中。
+#
+# 4. 设置扫描失败阈值：将 hawk.failureThreshold 配置选项
+#    (https://docs.stackhawk.com/hawkscan/configuration/#hawk) 添加到 stackhawk.yml 配置文件中。
+#    如果扫描产生的警报达到或超过 hawk.failureThreshold 警报级别，则扫描将返回退出代码 42，
+#    并触发一个带有指向扫描结果的 Code Scanning 警报的链接。
+#
+# 5. 更新 "Start your service" 步骤：更新下面 StackHawk 工作流程中的 "Start your service" 步骤，
+#    以启动您的服务，以便它可以在 "Run HawkScan" 步骤中进行扫描。
+
+name: "StackHawk"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  stackhawk:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 stackhawk/hawkscan-action 上传代码扫描警报信息
+    name: StackHawk
+    runs-on: ubuntu-20.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 启动您的服务
+        run: ./your-service.sh &                  # ✏️ 更新此项以运行您自己的要进行扫描的服务
+
+      - name: 运行 HawkScan
+        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        continue-on-error: true                   # ✏️ 将其设置为 false，以在扫描错误时中断构建
+        with:
+          apiKey: ${{ secrets.HAWK_API_KEY }}
+          codeScanningAlerts: true
+          githubToken: ${{ github.token }}

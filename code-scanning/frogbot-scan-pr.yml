@@ -1,0 +1,68 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+# Frogbot Scan Pull Request 执行以下操作：
+# 自动扫描新的拉取请求以查找安全漏洞。
+# 使用 JFrog Xray 扫描项目。
+# 了解有关 Frogbot 的更多信息 - https://github.com/jfrog/frogbot#frogbot
+
+# 一些项目需要创建一个 frogbot-config.yml 文件。在这里阅读更多信息 - https://github.com/jfrog/frogbot/blob/master/docs/frogbot-config.md
+
+name: "Frogbot Scan Pull Request"
+on:
+  pull_request_target:
+    types: [ opened, synchronize ]
+permissions:
+  pull-requests: write
+  contents: read
+jobs:
+  scan-pull-request:
+    runs-on: ubuntu-latest
+    # 在 Frogbot 扫描之前，需要批准拉取请求。任何与 "frogbot" GitHub 环境相关联的 GitHub 用户都可以批准进行扫描的拉取请求。
+    # 在此阅读更多信息（使用 GitHub Actions 安装 Frogbot）：https://github.com/jfrog/frogbot/blob/master/docs/install-github.md
+    environment: frogbot
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # 重要提示：
+      # 1. 有关 Frogbot 正常工作所需安装的工具的信息，请参见以下链接 - https://github.com/jfrog/frogbot/tree/master/docs/templates/github-actions/scan-and-fix
+      # 2. 有些项目需要创建 frogbot-config.yml 文件。在这里阅读更多信息 - https://github.com/jfrog/frogbot/blob/master/docs/frogbot-config.md
+
+      - uses: jfrog/frogbot@8fbeca612957ae5f5f0c03a19cb6e59e237026f3  # v2.10.0
+        env:
+          # [如果满足以下两个条件之一，则为必填项]
+          # 1. 项目使用 npm、yarn 2、NuGet 或 .NET 下载其依赖项
+          # 2. 在 frogbot-config.yml 文件中未设置 `installCommand` 变量。
+          #
+          # 安装项目依赖项的命令（例如 "npm i"、"nuget restore" 或 "dotnet restore"）
+          # JF_INSTALL_DEPS_CMD: ""
+
+          # [必填项]
+          # JFrog 平台 URL
+          JF_URL: ${{ secrets.JF_URL }}
+
+          # [如果未提供 JF_USER 和 JF_PASSWORD，则为必填项]
+          # 具有对 Xray 服务的 'read' 权限的 JFrog 访问令牌
+          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+
+          # [如果未提供 JF_ACCESS_TOKEN，则为必填项]
+          # 具有对 Xray 的 'read' 权限的 JFrog 用户名。必须与 JF_PASSWORD 一起提供
+          # JF_USER: ${{ secrets.JF_USER }}
+
+          # [如果未提供 JF_ACCESS_TOKEN，则为必填项]
+          # JFrog 密码。必须与 JF_USER 一起提供
+          # JF_PASSWORD: ${{ secrets.JF_PASSWORD }}
+
+          # [必填项]
+          # 作业自动生成的 GitHub 令牌
+          JF_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # [可选项]
+          # 如果运行 Frogbot 的机器无法访问互联网，请设置 Artifactory 中代理 https://releases.jfrog.io/artifactory 的远程仓库的名称
+          # 'frogbot' 可执行文件及其所需的其他工具将通过此存储库下载。
+          # JF_RELEASES_REPO: ""
+
+          # [可选项]
+          # 如果本地未缓存依赖项，Frogbot 将下载项目依赖项。要从 Artifactory 中的虚拟仓库下载依赖项，请设置仓库的名称。如果在 frogbot-config.yml 文件中设置了该值，则无需设置此值。
+          # JF_DEPS_REPO: ""

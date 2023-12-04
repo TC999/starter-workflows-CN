@@ -1,0 +1,41 @@
+#这个工作流使用了GitHub未经认证的操作。
+#这些操作是由第三方提供的，并受到独立的服务条款、隐私政策和支持文档的管理。
+
+# 定义工作流的名称为Dart
+name: Dart
+
+# 控制工作流何时运行
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # 注意：此工作流使用Dart SDK的最新稳定版本。
+      # 如果需要，可以指定其他版本，请参见文档：
+      # https://github.com/dart-lang/setup-dart/blob/main/README.md
+      # - uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@9a04e6d73cca37bd455e0608d7e5092f881fd603
+
+      - name: Install dependencies
+        run: dart pub get
+
+      # 取消注释此步骤以验证每次提交时使用 'dart format'。
+      # - name: Verify formatting
+      #   run: dart format --output=none --set-exit-if-changed .
+
+      # 考虑传递 '--fatal-infos' 以进行略微更严格的分析。
+      - name: Analyze project source
+        run: dart analyze
+
+      # 为了使此步骤成功，项目需要在 test/ 中具有测试，并依赖于 package:test。
+      # 注意，Flutter 项目将想要将此更改为 'flutter test'。
+      - name: Run tests
+        run: dart test

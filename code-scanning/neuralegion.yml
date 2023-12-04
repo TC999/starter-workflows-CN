@@ -1,0 +1,173 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+#
+# 运行 Nexploit 扫描
+# 此操作在 Nexploit 中运行新的安全扫描，或重新运行现有扫描。
+# 构建安全的应用程序和 API。快速。
+# [NeuraLegion](https://www.neuralegion.com) 是一款强大的动态应用程序和 API 安全测试（DAST）平台，受到安全团队的信任，也受到开发人员的喜爱。
+# 自动测试应用程序和 API 的每个方面
+# 扫描任何目标，无论是 Web 应用程序、API（REST、SOAP、GraphQL 等）、Web sockets 还是移动应用程序，提供可操作的报告
+# 与您已经使用的工具和工作流程无缝集成
+#
+# NeuraLegion 与现有的 CI/CD 流水线一起工作 - 在每次提交、拉取请求或带有单元测试的构建中触发扫描。
+# 使用代码轻松启动、配置和控制扫描
+# 一个文件。一个命令。一个扫描。无需 UI。
+#
+# 超快速扫描
+#
+# 与其仅爬行和猜测不同，与应用程序和 API 进行交互。
+# 由于我们的 AI 引擎可以理解应用程序架构并生成复杂且有针对性的攻击，因此扫描速度很快。
+#
+# 无误报
+#
+# 停止追逐幽灵和浪费时间。NeuraLegion 不返回误报，因此您可以专注于发布代码。
+#
+# 全面的安全测试
+#
+# NeuraLegion 对所有常见漏洞进行测试，如 SQL 注入、CSRF、XSS 和 XXE - 以及不常见的漏洞，如业务逻辑漏洞。
+#
+# 可在 NeuraLegion 的以下位置获取更多信息：
+# * [官网](https://www.neuralegion.com/)
+# * [知识库](https://docs.neuralegion.com/docs/quickstart)
+# * [YouTube 频道](https://www.youtube.com/channel/UCoIC0T1pmozq3eKLsUR2uUw)
+# * [GitHub Actions](https://github.com/marketplace?query=neuralegion+)
+#
+# 输入
+#
+# `name`
+#
+# **必需**。扫描名称。
+#
+# _示例:_ `name: GitHub scan ${{ github.sha }}`
+#
+# `api_token`
+#
+# **必需**。您的 Nexploit API 授权令牌（密钥）。您可以在 [nexploit.app](https://nexploit.app/login) 的 **Organization** 部分生成它。在此处找到更多信息 [here](https://kb.neuralegion.com/#/guide/np-web-ui/advanced-set-up/managing-org?id=managing-organization-apicli-authentication-tokens)。
+#
+# _示例:_ `api_token: ${{ secrets.NEXPLOIT_TOKEN }}`
+#
+# `restart_scan`
+#
+# **必需**，当通过其 ID 重新启动现有扫描时。您可以在 [nexploit.app](https://nexploit.app/login) 的扫描部分获取扫描 ID。<br> 请确保仅使用必要的参数。否则，您将收到带有参数使用要求的响应。
+#
+# _示例:_ `restart_scan: ai3LG8DmVn9Rn1YeqCNRGQ)`
+#
+# `discovery_types`
+#
+# **必需**。发现类型数组。以下类型可用：
+# * `archive` - 使用上传的 HAR 文件进行扫描
+# * `crawler` - 使用爬虫定义扫描的攻击面
+# * `oas` - 使用上传的 OpenAPI 模式进行扫描 <br>
+# 如果未指定发现类型，则默认应用 `crawler`。
+#
+# _示例:_
+#
+# ```yml
+# discovery_types: |
+#   [ "crawler", "archive" ]
+# ```
+#
+# `file_id`
+#
+# **必需**，如果发现类型设置为 `archive` 或 `oas`。要用于扫描的 HAR 文件或 OpenAPI 模式的 ID。您可以在 [nexploit.app](https://nexploit.app/login) 的 **Storage** 部分中获取已上传的 HAR 文件或 OpenAPI 模式的 ID。
+#
+# _示例:_
+#
+# ```
+# FILE_ID=$(nexploit-cli archive:upload   \
+# --token ${{ secrets.NEXPLOIT_TOKEN }}   \
+# --discard true                          \
+# ./example.har)
+# ```
+#
+# `crawler_urls`
+#
+# **必需**，如果发现类型设置为 `crawler`。爬虫用于定义攻击面的目标 URL。
+#
+# _示例:_
+#
+# ```
+# crawler_urls: |
+#   [ "http://vulnerable-bank.com" ]
+# ```
+#
+# `hosts_filter`
+#
+# **必需**，当发现类型设置为 `archive` 时。允许选择扫描的特定主机。
+#
+# 输出
+#
+# `url`
+#
+# 扫描结果的 URL
+#
+# `id`
+#
+# 创建的扫描的 ID。然后可以使用此 ID 重新启动扫描，或用于以下 GitHub 操作：
+# * [Nexploit Wait for Issues](https://github.com/marketplace/actions/nexploit-wait-for-issues)
+# * [Nexploit Stop Scan](https://github.com/marketplace/actions/nexploit-stop-scan)
+#
+# 示例用法
+#
+# 启动具有参数的新扫描
+#
+# ```yml
+# steps:
+#     - name: 启动 Nexploit 扫描
+#       id: start
+#       uses: NeuraLegion/run-scan@29ebd17b4fd6292ce7a238a59401668953b37fbe
+#       with:
+#         api_token: ${{ secrets.NEURALEGION_TOKEN }}
+#         name: GitHub scan ${{ github.sha }}
+#         discovery_types: |
+#           [ "crawler", "archive" ]
+#         crawler_urls: |
+#           [ "http://vulnerable-bank.com" ]
+#         file_id: LiYknMYSdbSZbqgMaC9Sj
+#         hosts_filter: |
+#           [ ]
+#     - name: 获取输出扫描 URL
+#       run: echo "The scan was started on ${{ steps.start.outputs.url }}"
+# ```
+#
+# 重新启动现有扫描
+#
+# ```yml
+# steps:
+#     - name: 启动 Nexploit 扫描
+#       id: start
+#       uses: NeuraLegion/run-scan@29ebd17b4fd6292ce7a238a59401668953b37fbe
+#       with:
+#         api_token: ${{ secrets.NEURALEGION_TOKEN }}
+#         name: GitHub scan ${{ github.sha }}
+#         restart_scan: ai3LG8DmVn9Rn1YeqCNRGQ
+#     - name: 获取输出扫描 URL
+#       run: echo "The scan was started on ${{ steps.start.outputs.url }}"
+
+
+name: "NeuraLegion"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  neuralegion_scan:
+    runs-on: ubuntu-18.04
+    name: 运行 Nexploit 扫描的作业
+    steps:
+      - uses: actions/checkout@v2
+      - name: 启动 Nexploit 扫描 🏁
+        id: start
+        uses: NeuraLegion/run-scan@29ebd17b4fd6292ce7a238a59401668953b37fbe
+        with:
+          api_token: ${{ secrets.NEURALEGION_TOKEN }}
+          name: GitHub 扫描 ${{ github.sha }}
+          discovery_types: |
+            [ "crawler" ]
+          crawler_urls: |
+            [ "https://brokencrystals.com" ] # ✏️ 更新为您要扫描的网址

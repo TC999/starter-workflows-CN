@@ -1,0 +1,122 @@
+# 此工作流将在推送代码时构建并将应用程序推送到 Azure Kubernetes Service (AKS) 集群。
+
+# 此工作流假设您已经创建了目标 AKS 集群，并已创建了 Azure Container Registry (ACR)。
+# ACR 应该已附加到 AKS 集群。
+# 有关说明，请参见：
+#   - https://docs.microsoft.com/en-us/azure/aks/kubernetes-walkthrough-portal
+#   - https://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-portal
+#   - https://learn.microsoft.com/en-us/azure/aks/cluster-container-registry-integration?tabs=azure-cli#configure-acr-integration-for-existing-aks-clusters
+#   - https://github.com/Azure/aks-create-action
+
+# 要配置此工作流：
+# 1. 在您的仓库中设置以下秘密（获取这些的说明请参见 https://docs.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-cli%2Clinux）：
+#    - AZURE_CLIENT_ID
+#    - AZURE_TENANT_ID
+#    - AZURE_SUBSCRIPTION_ID
+# 2. 设置以下环境变量（或替换下面的值）：
+#    - AZURE_CONTAINER_REGISTRY（您的容器注册表 / ACR 的名称）
+#    - CONTAINER_NAME（要推送到 ACR 的容器映像的名称）
+#    - RESOURCE_GROUP（部署集群的资源组）
+#    - CLUSTER_NAME（AKS 集群的名称）
+#    - IMAGE_PULL_SECRET_NAME（将用于拉取 ACR 映像的 ImagePullSecret 的名称）
+# 3. 选择适当的渲染引擎进行 bake 步骤 https://github.com/Azure/k8s-bake。以下配置假定使用 Helm。
+#    设置 helmChart、overrideFiles、overrides 和 helm-version 以适应您的配置。
+#    - CHART_PATH（Helm 图表的路径）
+#    - CHART_OVERRIDE_PATH（Helm 图表的路径，带有覆盖值）
+
+# 有关 GitHub Actions for Azure 的更多信息，请参见 https://github.com/Azure/Actions
+# 要开始使用 GitHub Action 工作流进行 Azure 部署，请参见 https://github.com/Azure/actions-workflow-samples
+# 有关下面使用的操作的更多选项，请参见 https://github.com/Azure/login
+
+name: 构建并使用 Helm 部署应用到 AKS
+
+on:
+  push:
+    branches: [$default-branch]
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: "your-azure-container-registry"
+  CONTAINER_NAME: "your-container-name"
+  RESOURCE_GROUP: "your-resource-group"
+  CLUSTER_NAME: "your-cluster-name"
+  CHART_PATH: "your-chart-path"
+  CHART_OVERRIDE_PATH: "your-chart-override-path"
+
+jobs:
+  buildImage:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      # 检查出此文件所在的仓库
+      - uses: actions/checkout@v3
+
+      # 使用 Azure 凭据登录
+      - name: Azure 登录
+        uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 构建并推送映像到 Azure 容器注册表
+      - name: 构建并推送映像到 ACR
+        run: |
+          az acr build --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} --registry ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.RESOURCE_GROUP }} .
+
+  deploy:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    needs: [buildImage]
+    steps:
+      # 检查出此文件所在的仓库
+      - uses: actions/checkout@v3
+
+      # 使用 Azure 凭据登录
+      - name: Azure 登录
+        uses: azure/login@v1.4.6
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # 使用 kubelogin 配置 kubeconfig 以进行 Azure 认证的非交互式登录
+      - name: 设置 kubelogin 以进行非交互式登录
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.0.25'
+
+      # 检索 Azure Kubernetes Service 集群的 kubeconfig 文件
+      - name: 获取 K8s 上下文
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          admin: 'false'
+          use-kubelogin: 'true'
+
+      # 运行 Helm 以创建清单文件
+      - name: bake 部署
+        uses: azure/k8s-bake@v2
+        with:
+          renderEngine: "helm"
+          helmChart: ${{ env.CHART_PATH }}
+          overrideFiles: ${{ env.CHART_OVERRIDE_PATH }}
+          overrides: |
+            replicas:2
+          helm-version: "latest"
+        id: bake
+
+      # 根据上一步的清单文件部署应用程序
+      - name: 部署应用程序
+        uses: Azure/k8s-deploy@v4
+        with:
+          action: deploy
+          manifests: ${{ steps.bake.outputs.manifestsBundle }}
+          images: |
+            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}

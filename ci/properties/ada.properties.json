@@ -1,0 +1,6 @@
+{
+    "name": "Ada",
+    "description": "使用 GPRbuild 构建 Ada 项目。",
+    "iconName": "ada",
+    "categories": ["持续集成", "Ada"]
+}

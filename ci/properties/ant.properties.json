@@ -1,0 +1,6 @@
+{
+    "name": "Java with Ant",
+    "description": "使用 Apache Ant 构建和测试 Java 项目。",
+    "iconName": "ant",
+    "categories": ["持续集成", "Ant", "Java"]
+}

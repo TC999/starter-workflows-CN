@@ -1,0 +1,47 @@
+# 该工作流使用GitHub未经认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 该工作流需要您在codescan.io上拥有现有帐户
+# 有关配置工作流的更多信息，
+# 请阅读我们的文档：https://github.com/codescan-io/codescan-scanner-action
+name: CodeScan
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+    CodeScan:
+        permissions:
+          contents: read # 用于获取代码的 actions/checkout
+          security-events: write # 用于上传 SARIF 结果的 github/codeql-action/upload-sarif
+          actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+        runs-on: ubuntu-latest
+        steps:
+            -   name: 检出存储库
+                uses: actions/checkout@v3
+            -   name: 缓存文件
+                uses: actions/cache@v3
+                with:
+                    path: |
+                        ~/.sonar
+                    key: ${{ runner.os }}-sonar
+                    restore-keys: ${{ runner.os }}-sonar
+            -   name: 运行分析
+                uses: codescan-io/codescan-scanner-action@5b2e8c5683ef6a5adc8fa3b7950bb07debccce12
+                with:
+                    login: ${{ secrets.CODESCAN_AUTH_TOKEN }}
+                    organization: ${{ secrets.CODESCAN_ORGANIZATION_KEY }}
+                    projectKey: ${{ secrets.CODESCAN_PROJECT_KEY }}
+            -   name: 上传 SARIF 文件
+                uses: github/codeql-action/upload-sarif@v2
+                with:
+                    sarif_file: codescan.sarif

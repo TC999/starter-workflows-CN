@@ -1,0 +1,41 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 它们由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+name: MobSF
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-security:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在需要时，由 github/codeql-action/upload-sarif 用于获取 Action 运行状态
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: 设置 Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+
+      - name: 运行 mobsfscan
+        uses: MobSF/mobsfscan@a60d10a83af68e23e0b30611c6515da604f06f65
+        with:
+          args: . --sarif --output results.sarif || true
+
+      - name: 上传 mobsfscan 报告
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

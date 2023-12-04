@@ -1,0 +1,6 @@
+{
+    "name": "Android CI",
+    "description": "使用 Gradle 构建 Android 项目。",
+    "iconName": "android",
+    "categories": ["持续集成", "Java", "移动"]
+}

@@ -1,0 +1,27 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: 配置
+      run: ./configure
+
+    - name: 安装依赖
+      run: make
+
+    - name: 运行检查
+      run: make check
+
+    - name: 运行 distcheck
+      run: make distcheck

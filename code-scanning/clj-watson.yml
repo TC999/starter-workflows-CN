@@ -1,0 +1,52 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+# clj-watson 扫描 clojure deps.edn 中的依赖项，
+# 寻找有漏洞的直接/传递依赖项，
+# 并生成包含所有信息的报告，
+# 以帮助您了解漏洞在您的软件中的表现方式。
+# 详细信息请参见 https://github.com/clj-holmes/clj-watson
+
+name: clj-watson
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  clj-holmes:
+    name: 运行 clj-watson 扫描
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v2
+
+      - name: 依赖项扫描
+        uses: clj-holmes/clj-watson-action@39b8ed306f2c125860cf6e69b6939363689f998c
+        with:
+          clj-watson-sha: "65d928c"
+          clj-watson-tag: "v4.0.1"
+          database-strategy: github-advisory
+          aliases: clojure-lsp,test
+          deps-edn-path: deps.edn
+          suggest-fix: true
+          output-type: sarif
+          output-file: clj-watson-results.sarif
+          fail-on-result: false
+
+      - name: 将分析结果上传到 GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{github.workspace}}/clj-watson-results.sarif
+          wait-for-processing: true

@@ -1,0 +1,54 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+name: Cloudrail
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+jobs:
+  cloudrail:
+    name: 使用 SARIF 输出运行 Indeni Cloudrail 对 Terraform 代码进行扫描
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: 克隆仓库
+        uses: actions/checkout@v3
+
+      # 对于 Terraform，Cloudrail 需要计划作为输入。所以我们使用 Terraform 核心二进制生成它。
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: v0.13.2
+
+      - run: terraform init
+
+      - run: terraform plan -out=plan.out
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 确认我们有计划文件
+      - run: stat plan.out
+
+      - name: 运行 Cloudrail
+        uses: indeni/cloudrail-run-ga@b56ed2d30913c975b36df231adc2eabf05523622
+        with:
+          tf-plan-file: plan.out # 此文件在 "terraform plan" 步骤中创建
+          cloudrail-api-key: ${{ secrets.CLOUDRAIL_API_KEY }} # 需要在 https://web.cloudrail.app 进行 Indeni Cloudrail SaaS 的注册
+          cloud-account-id: # 对于静态分析，请将其保留为空，或者为动态分析提供帐户 ID，请参见 Cloudrail SaaS 中的说明
+
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        # 请记住，如果发现问题，Cloudrail 返回非零的退出代码，因此 if: always() 是必需的，以确保上传 SARIF 文件
+        if: always()
+        with:
+          sarif_file: cloudrail_results.sarif

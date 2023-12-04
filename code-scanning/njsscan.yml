@@ -1,0 +1,40 @@
+# 此工作流使用未由 GitHub 认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将 njsscan 与 GitHub 的代码扫描功能集成
+# nodejsscan 是一个用于查找 Node.js 应用程序中不安全代码模式的静态安全代码扫描工具
+
+name: njsscan sarif
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面列出的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  njsscan:
+    permissions:
+      contents: read # 用于 actions/checkout 拉取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅对私有存储库需要，由 github/codeql-action/upload-sarif 使用以获取操作运行状态
+    runs-on: ubuntu-latest
+    name: njsscan 代码扫描
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    - name: 运行 nodejsscan
+      id: njsscan
+      uses: ajinabraham/njsscan-action@7237412fdd36af517e2745077cedbf9d6900d711
+      with:
+        args: '. --sarif --output results.sarif || true'
+    - name: 上传 njsscan 报告
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: results.sarif

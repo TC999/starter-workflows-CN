@@ -1,0 +1,41 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+name: pmd
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  pmd-code-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: 设置 JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+      - name: 运行 PMD
+        id: pmd
+        uses: pmd/pmd-github-action@967a81f8b657c87f7c3e96b62301cb1a48efef29
+        with:
+          rulesets: 'rulesets/java/quickstart.xml'
+          sourcePath: 'src/main/java'
+          analyzeModifiedFilesOnly: false
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: pmd-report.sarif

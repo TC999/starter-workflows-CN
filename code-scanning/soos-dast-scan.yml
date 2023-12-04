@@ -1,0 +1,45 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# SOOS 是易于集成且价格合理的软件安全解决方案，适用于整个团队。
+# 了解更多信息，请访问 https://soos.io/
+#
+# 要使用此操作，请执行以下步骤：
+#
+# 1. 在 https://app.soos.io 上创建帐户。SOOS 为我们的 SCA 和 DAST 产品提供为期 30 天的免费试用期。
+#
+# 2. 转到 SOOS 应用程序中的“Integrate”页面（https://app.soos.io/integrate）。注意此页面的“API凭证”部分；您将在下一步中需要的密钥就在这里。
+#
+# 3. 将您的 SOOS API 密钥和 SOOS 客户端 ID 设置为名为 SOOS_API_KEY 和 SOOS_CLIENT_ID 的 Github Secrets。
+#
+# 4.（可选）如果您想将 DAST 扫描的 SARIF 结果上传到 GitHub，请使用您的 Github 个人访问令牌设置 SOOS_GITHUB_PAT。
+#
+
+name: "SOOS DAST Scan"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  soos:
+    permissions:
+      security-events: write # 用于上传代码扫描警报信息
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+    name: SOOS DAST Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: 运行 SOOS DAST 扫描
+        uses: soos-io/soos-dast-github-action@3e71b27756f4ed77d7ad3c0ad92afddb47a40e4d # 使用来自 https://github.com/marketplace/actions/soos-dast 的最新版本
+        with:
+          client_id: ${{ secrets.SOOS_CLIENT_ID }}
+          api_key: ${{ secrets.SOOS_API_KEY }}
+          project_name: "<YOUR-PROJECT-NAME>"
+          scan_mode: "baseline"
+          target_url: "https://www.example.com/"
+          output_format: "sarif"
+      - name: 上传 SOOS DAST SARIF 报告
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

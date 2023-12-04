@@ -1,0 +1,122 @@
+# 此工作流将构建并推送一个新的容器镜像到阿里云容器镜像服务 (ACR)，
+# 然后在对 $default-branch 分支的推送时，将其部署到阿里云容器服务 for Kubernetes (ACK)。
+
+# 要使用此工作流，您需要完成以下设置步骤：
+
+# 1. 创建一个 ACR 仓库来存储您的容器镜像。
+#    您可以使用 ACR EE 实例以获得更高的安全性和性能。
+#    有关说明，请参见 https://www.alibabacloud.com/help/doc-detail/142168.htm
+
+# 2. 创建一个 ACK 集群来运行您的容器化应用程序。
+#    您可以使用 ACK Pro 集群以获得更高的安全性和性能。
+#    有关说明，请参见 https://www.alibabacloud.com/help/doc-detail/95108.htm
+
+# 3. 将您的 AccessKey 对存储在 GitHub Actions 密钥中，命名为 `ACCESS_KEY_ID` 和 `ACCESS_KEY_SECRET`。
+#    有关设置密钥的说明，请参见：https://developer.github.com/actions/managing-workflows/storing-secrets/
+
+# 4. 更改 REGION_ID、REGISTRY、NAMESPACE、IMAGE、ACK_CLUSTER_ID 和 ACK_DEPLOYMENT_NAME 的值。
+
+name: Build and Deploy to ACK
+
+on:
+  push:
+    branches: [ $default-branch ]
+
+# 环境变量可用于此工作流中所有作业和步骤。
+env:
+  REGION_ID: cn-hangzhou
+  REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  NAMESPACE: namespace
+  IMAGE: repo
+  TAG: ${{ github.sha }}
+  ACK_CLUSTER_ID: clusterID
+  ACK_DEPLOYMENT_NAME: nginx-deployment
+
+  ACR_EE_REGISTRY: myregistry.cn-hangzhou.cr.aliyuncs.com
+  ACR_EE_INSTANCE_ID: instanceID
+  ACR_EE_NAMESPACE: namespace
+  ACR_EE_IMAGE: repo
+  ACR_EE_TAG: ${{ github.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # 1.1 登录到 ACR
+    - name: 使用 AccessKey 对登录到 ACR
+      uses: aliyun/acr-login@v1
+      with:
+        region-id: "${{ env.REGION_ID }}"
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+
+    # 1.2 构建并推送镜像到 ACR
+    - name: 构建并推送镜像到 ACR
+      run: |
+        docker build --tag "$REGISTRY/$NAMESPACE/$IMAGE:$TAG" .
+        docker push "$REGISTRY/$NAMESPACE/$IMAGE:$TAG"
+
+    # 1.3 在 ACR 中扫描镜像
+    - name: 在 ACR 中扫描镜像
+      uses: aliyun/acr-scan@v1
+      with:
+        region-id: "${{ env.REGION_ID }}"
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+        repository: "${{ env.NAMESPACE }}/${{ env.IMAGE }}"
+        tag: "${{ env.TAG }}"
+
+    # 2.1 (可选) 登录到 ACR EE
+    - uses: actions/checkout@v3
+    - name: 使用 AccessKey 对登录到 ACR EE
+      uses: aliyun/acr-login@v1
+      with:
+        login-server: "https://${{ env.ACR_EE_REGISTRY }}"
+        region-id: "${{ env.REGION_ID }}"
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+        instance-id: "${{ env.ACR_EE_INSTANCE_ID }}"
+
+    # 2.2 (可选) 构建并推送镜像到 ACR EE
+    - name: 构建并推送镜像到 ACR EE
+      run: |
+        docker build -t "$ACR_EE_REGISTRY/$ACR_EE_NAMESPACE/$ACR_EE_IMAGE:$TAG" .
+        docker push "$ACR_EE_REGISTRY/$ACR_EE_NAMESPACE/$ACR_EE_IMAGE:$TAG"
+
+    # 2.3 (可选) 在 ACR EE 中扫描镜像
+    - name: 在 ACR EE 中扫描镜像
+      uses: aliyun/acr-scan@v1
+      with:
+        region-id: "${{ env.REGION_ID }}"
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+        instance-id: "${{ env.ACR_EE_INSTANCE_ID }}"
+        repository: "${{ env.ACR_EE_NAMESPACE}}/${{ env.ACR_EE_IMAGE }}"
+        tag: "${{ env.ACR_EE_TAG }}"
+
+    # 3.1 设置 ACK 上下文
+    - name: 设置 K8s 上下文
+      uses: aliyun/ack-set-context@v1
+      with:
+        access-key-id: "${{ secrets.ACCESS_KEY_ID }}"
+        access-key-secret: "${{ secrets.ACCESS_KEY_SECRET }}"
+        cluster-id: "${{ env.ACK_CLUSTER_ID }}"
+
+    # 3.2 将镜像部署到 ACK 集群
+    - name: 设置 Kustomize
+      run: |-
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash /dev/stdin 3.8.6
+    - name: 部署
+      run: |-
+        ./kustomize edit set image REGISTRY/NAMESPACE/IMAGE:TAG=$REGISTRY/$NAMESPACE/$IMAGE:$TAG
+        ./kustomize build . | kubectl apply -f -
+        kubectl rollout status deployment/$ACK_DEPLOYMENT_NAME
+        kubectl get services -o wide

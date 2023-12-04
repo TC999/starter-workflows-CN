@@ -1,0 +1,41 @@
+# 此工作流使用未经 GitHub 认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+#
+# 此工作流文件需要在 Bearer.com 上免费注册账户以管理发现、通知等。
+# 请参阅 https://docs.bearer.com/guides/bearer-cloud/
+name: Bearer
+
+on:
+  push:
+    branches: [$default-branch, $protected-branches]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [$default-branch]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read # 用于 actions/checkout 获取代码
+  security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+  actions: read # 仅在私有仓库中由 github/codeql-action/upload-sarif 获取操作运行状态时需要
+
+jobs:
+  bearer:
+    runs-on: ubuntu-latest
+    steps:
+      # 检出项目源代码
+      - uses: actions/checkout@v3
+      # 使用 Bearer CLI 扫描代码
+      - name: 运行报告
+        id: report
+        uses: bearer/bearer-action@828eeb928ce2f4a7ca5ed57fb8b59508cb8c79bc
+        with:
+          api-key: ${{ secrets.BEARER_TOKEN }}
+          format: sarif
+          output: results.sarif
+          exit-code: 0
+      # 上传前面步骤生成的 SARIF 文件
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif

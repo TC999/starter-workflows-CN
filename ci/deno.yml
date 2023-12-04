@@ -1,0 +1,40 @@
+#这个工作流使用了GitHub未经认证的操作。
+#这些操作是由第三方提供的，并受到独立的服务条款、隐私政策和支持文档的管理。
+
+# 定义工作流的名称为Deno
+name: Deno
+
+# 控制工作流何时运行
+on:
+  push:
+    branches: [$default-branch]
+  pull_request:
+    branches: [$default-branch]
+
+# 设置权限，允许读取仓库内容
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup repo
+        uses: actions/checkout@v3
+
+      - name: Setup Deno
+        # uses: denoland/setup-deno@v1
+        uses: denoland/setup-deno@61fe2df320078202e33d7d5ad347e7dcfa0e8f31  # v1.1.2
+        with:
+          deno-version: v1.x
+
+      # 取消注释此步骤以验证每次提交时使用 'deno fmt'。
+      # - name: Verify formatting
+      #   run: deno fmt --check
+
+      - name: Run linter
+        run: deno lint
+
+      - name: Run tests
+        run: deno test -A

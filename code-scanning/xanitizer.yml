@@ -1,0 +1,97 @@
+# 此工作流使用 GitHub 未认证的操作。这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将下载并安装 Xanitizer 的最新版本，构建您的项目，在其上运行 Xanitizer 安全分析，
+# 然后归档发现列表报告，并将发现上传到您存储库的 GitHub 代码扫描警报部分。
+
+# `RIGS-IT/xanitizer-action` 的文档位于此处: https://github.com/RIGS-IT/xanitizer-action
+#
+# 若要使用此基本工作流，您需要完成以下设置步骤：
+#
+# 1. 此工作流中使用的 Xanitizer 需要一个单独的许可文件。
+#    对于开源项目和教育用途，许可证是免费的。
+#    有关 Xanitizer 许可证以及如何获取许可证文件的更多信息，
+#    请参阅 https://www.xanitizer.com/xanitizer-pricing/。
+#
+# 2. 许可文件的内容必须存储为 GitHub 密钥（例如 XANITIZER_LICENSE）存储在此存储库中。
+#    有关详细信息，请参阅 https://docs.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets。
+#
+# 3. 在使用 `RIGS-IT/xanitizer-action` GitHub 操作的步骤中引用 GitHub 密钥。
+#    例如：
+#    - name: Xanitizer Security Analysis
+#      uses: RIGS-IT/xanitizer-action@v1
+#      with:
+#        license: ${{ secrets.XANITIZER_LICENSE }}
+#
+# 4. 作为静态应用程序安全性测试（SAST）工具，
+#    Xanitizer 要求能够成功解析正在分析的构件的所有依赖项。
+#    因此，在运行安全性分析之前，您必须安装所有使用的库并构建您的项目，
+#    例如通过 Java 使用 `mvn compile` 或通过 JavaScript 使用 `npm install`
+
+name: "Xanitizer Security Analysis"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xanitizer-security-analysis:
+    # Xanitizer 在 ubuntu-latest 和 windows-latest 上运行。
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅在私有存储库中由 github/codeql-action/upload-sarif 需要获取 Action 运行状态时才需要
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出存储库
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # 设置适用于您的项目的正确 Java 版本
+      # 如果您的项目不包含 Java 源代码，请注释掉此部分。
+      - name: 设置 JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: 11
+          distribution: 'temurin'
+
+      # 为 Java 项目编译代码并获取所有库，例如通过 Maven
+      # 如果您的项目使用其他构建系统来编译 Java 源代码，请适应。
+      # 如果您的项目不包含 Java 源代码，请注释掉此部分。
+      - name: 编译 Java 代码
+        run: mvn -B compile
+
+      # 为 JavaScript/TypeScript 项目安装所有依赖库，例如通过 npm
+      # 根据需要在正确的目录中运行 `npm install` 进行调整。
+      # 如果您的项目使用其他包管理器来获取 JavaScript 库，请适应。
+      # 如果您的项目不使用包管理器来获取 JavaScript 库，请注释掉此部分。
+      - name: 安装 JavaScript 库
+        run: npm install
+
+      # 使用默认设置运行安全性分析
+      - name: Xanitizer Security Analysis
+        uses: RIGS-IT/xanitizer-action@87d13138fb113b727cbe040c744a15a2b4fe5316
+        with:
+          license: ${{ secrets.XANITIZER_LICENSE }}
+
+      # 归档发现列表报告
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Xanitizer-Reports
+          path: |
+            *-Findings-List.pdf
+            *-Findings-List.sarif
+
+      # 使用 upload-sarif 操作将发现上传到 GitHub 代码扫描警报部分
+      - uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: Xanitizer-Findings-List.sarif

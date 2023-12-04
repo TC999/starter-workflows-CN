@@ -1,0 +1,38 @@
+# 定义工作流的名称为在单一平台上运行CMake
+name: CMake on a single platform
+
+# 控制工作流何时运行
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+env:
+  # 在这里自定义CMake构建类型（Release、Debug、RelWithDebInfo等）
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    # CMake配置和构建命令是平台无关的，可以在Windows或Mac上同样有效。
+    # 如果需要跨平台覆盖，可以将其转换为矩阵构建。
+    # 参见：https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure CMake
+      # 在'build'子目录中配置CMake。仅当使用单配置生成器（例如make）时，才需要'CMAKE_BUILD_TYPE'。
+      # 参见 https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      # 使用给定配置构建你的程序
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      # 执行由CMake配置定义的测试。
+      # 有关更详细的信息，请参见 https://cmake.org/cmake/help/latest/manual/ctest.1.html
+      run: ctest -C ${{env.BUILD_TYPE}}

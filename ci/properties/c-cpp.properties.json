@@ -1,0 +1,6 @@
+{
+    "name": "C/C++ with Make",
+    "description": "使用 Make 构建和测试 C/C++ 项目。",
+    "iconName": "c-cpp",
+    "categories": ["持续集成", "C", "C++"]
+}

@@ -1,0 +1,116 @@
+# 该工作流使用GitHub未经认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# 此工作流使用 Red Hat CodeReady Dependency Analytics 对源代码进行静态分析。
+
+# 触发扫描的条件：
+# 1. 在默认分支和受保护分支上的每次推送
+# 2. 针对默认分支的每次拉取请求
+# 3. 每周定期计划
+# 4. 手动触发，按需使用 "workflow_dispatch" 事件
+
+# 💁 CRDA Starter 工作流将执行以下操作：
+# - 检出您的存储库
+# - 设置所需的工具栈
+# - 安装 CRDA 命令行工具
+# - 自动检测清单文件并安装项目的依赖项
+# - 使用 CRDA 执行安全扫描
+# - 将 SARIF 结果上传到 GitHub Code Scanning，可在安全选项卡下查看
+# - 可选地将 SARIF 文件作为未来参考上传为构件
+
+# ℹ️ 配置存储库和工作流的步骤如下：
+# 1. 根据项目的要求设置工具栈。
+#    参考：https://github.com/redhat-actions/crda/#1-set-up-the-tool-stack
+# 2. (可选) CRDA 操作尝试检测语言并为您的项目安装所需的依赖项。
+#    如果您的项目不符合此处 https://github.com/redhat-actions/crda/#3-installing-dependencies 提到的默认依赖项安装命令，
+#    请使用所需的输入设置相同
+# 3. (可选) CRDA 操作尝试检测项目根目录中是否存在清单文件，并按照此处 https://github.com/redhat-actions/crda/#3-installing-dependencies 提到的默认文件命名进行检测。
+#    如果与默认值不符，请使用所需的输入设置相同
+# 4. 设置身份验证 - 创建 CRDA_KEY 或 SNYK_TOKEN。
+#    参考：https://github.com/redhat-actions/crda/#4-set-up-authentication
+# 5. (可选) 将 SARIF 文件作为构件上传以供下载和查看
+# 6. 提交并推送工作流文件到默认分支以触发工作流运行。
+
+# 👋 访问我们的 GitHub 组织 https://github.com/redhat-actions/ 查看我们的操作并提供反馈。
+
+name: CRDA 扫描
+
+# 控制工作流何时运行
+on:
+  # TODO: 根据您的 DevSecOps 流程自定义触发事件
+  #
+  # 此工作流是为与 OpenShift 入门工作流一起运行而制作的
+  # https://github.com/actions/starter-workflows/blob/main/deployments/openshift.yml
+  # 但是，如果您想将此工作流作为独立工作流运行，请取消下面的 'push' 触发器的注释，并根据您的要求进行配置。
+  #
+  workflow_call:
+    secrets:
+      CRDA_KEY:
+        required: false
+      SNYK_TOKEN:
+        required: false
+  workflow_dispatch:
+
+  # push:
+  #   branches: [ $default-branch, $protected-branches ]
+
+  # pull_request_target 用于安全地共享密钥给 PR 的工作流运行。
+  # 有关更多信息，请访问：https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
+  pull_request_target:
+    branches: [ $default-branch ]
+    types: [ assigned, opened, synchronize, reopened, labeled, edited ]
+
+permissions:
+  contents: read
+
+jobs:
+  crda-scan:
+    permissions:
+      contents: read            # 用于 actions/checkout 获取代码
+      security-events: write    # 用于 redhat-actions/crda 上传 SARIF 结果
+    name: 使用 CRDA 扫描项目漏洞
+    runs-on: ubuntu-20.04
+    steps:
+
+      - name: 检出存储库
+        uses: actions/checkout@v2
+
+      # *******************************************************************
+      # 必需：设置项目的说明书
+      # 1. 根据项目的类型设置 Go、Java、Node.js 或 Python
+      # 2. 下面列出的设置操作，请从中选择一个：
+      #    - Go: https://github.com/actions/setup-go
+      #    - Java: https://github.com/actions/setup-java
+      #    - Node.js: https://github.com/actions/setup-node
+      #    - Python: https://github.com/actions/setup-python
+      #
+      # 示例：
+      # - name: 设置 Node
+      #   uses: actions/setup-node@v2
+      #   with:
+      #     node-version: '14'
+
+      # https://github.com/redhat-actions/openshift-tools-installer/blob/main/README.md
+      - name: 安装 CRDA CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          source: github
+          github_pat: ${{ github.token }}
+          # 选择所需版本的 CRDA CLI
+          crda: "latest"
+
+      ######################################################################################
+      # https://github.com/redhat-actions/crda/blob/main/README.md
+      #
+      # 默认情况下，CRDA 将检测清单文件并使用项目类型的标准命令安装所需的依赖项。
+      # 如果您的项目与此操作中提到的默认设置不符，则需要设置此处描述的一些输入：
+      # https://github.com/redhat-actions/crda/blob/main/README.md#3-installing-dependencies
+      # 访问 https://github.com/redhat-actions/crda/#4-set-up-authentication 了解
+      # 获取 SNYK_TOKEN 或 CRDA_KEY 的过程
+      - name: CRDA 扫描
+        id: scan
+        uses: redhat-actions/crda@v1
+        with:
+          crda_key: ${{ secrets.CRDA_KEY }}           # 使用 crda_key 或 snyk_token 中的一个
+          # snyk_token: ${{ secrets.SNYK_TOKEN }}
+          # upload_artifact: false                    # 将此设置为 false 以跳过构件上传

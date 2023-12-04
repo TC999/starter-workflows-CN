@@ -1,0 +1,49 @@
+# 此工作流使用未由 GitHub 认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+#
+# NowSecure：移动安全专家 <https://www.nowsecure.com/>。
+#
+# 若要使用此工作流，您必须是现有的 NowSecure 客户，并且已为您的存储库启用 GitHub 高级安全性（GHAS）。
+#
+# 如果您 *不是* 现有客户，请单击此处联系我们获取许可和定价详细信息：
+# <https://info.nowsecure.com/github-request>。
+#
+# 操作步骤：
+#
+# 1. 在存储库的设置中，单击 "Secrets"，然后单击 "New repository secret"。将密钥命名为 "NS_TOKEN"，
+#    并粘贴您的平台令牌。如果您没有平台令牌，或希望为 GitHub 创建一个新的令牌，请访问
+#    NowSecure 平台，然后转到 "Profile & Preferences" 创建一个标有 "GitHub" 的令牌。
+#
+# 2. 按照下面的带有注释的工作流程，并进行必要的修改，然后将工作流保存到存储库中，
+#    并在操作运行后查看 "Security" 选项卡。
+
+name: "NowSecure"
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  nowsecure:
+    name: NowSecure
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 构建您的应用程序
+        run: ./gradlew assembleDebug              # 更新为构建 Android 或 iOS 应用程序的命令
+
+      - name: 运行 NowSecure
+        uses: nowsecure/nowsecure-action@3b439db31b6dce857b09f5222fd13ffc3159ad26
+        with:
+          token: ${{ secrets.NS_TOKEN }}
+          app_file: app-debug.apk                 # 更新为您的 .ipa 或 .apk 文件的路径
+          group_id: {{ groupId }}                 # 更新为您所需的平台组 ID
+
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: NowSecure.sarif

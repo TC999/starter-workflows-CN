@@ -1,0 +1,57 @@
+# 该工作流使用GitHub未经认证的操作。
+# 这些操作由第三方提供，并受单独的服务条款、隐私政策和支持文档约束。
+
+# Credo 是用于 Elixir 语言的静态代码分析工具，重点是教学和代码一致性。
+# https://github.com/rrrene/credo
+#
+# 要使用此工作流，必须在存储库中启用 GitHub Advanced Security (GHAS)。
+
+# 说明：
+# 1. 在项目的 mix.exs 中添加 :credo 作为依赖项，版本为 ~> 1.7.0-rc.1 - https://github.com/rrrene/credo#installation-and-usage
+# 2. 按照下面注释的工作流并进行任何必要的修改，然后保存工作流到您的存储库，并在操作运行后查看 "Security" 选项卡。
+
+name: Credo
+
+on:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    # 下面的分支必须是上面的分支的子集
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  security-scan:
+    permissions:
+      contents: read # 用于 actions/checkout 获取代码
+      security-events: write # 用于 github/codeql-action/upload-sarif 上传 SARIF 结果
+      actions: read # 仅对私有存储库需要，用于 github/codeql-action/upload-sarif 获取操作运行状态
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        otp: [version]
+        elixir: [version]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: erlef/setup-beam@988e02bfe678367a02564f65ca2e37726dc0268f
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - name: 获取依赖项
+        run: mix deps.get
+      - name: 编译依赖项
+        run: mix deps.compile
+      - name: 编译
+        run: mix compile
+      - name: 运行 Credo 扫描
+        run: mix credo --format=sarif > credo_output.sarif
+      - name: 上传 SARIF 文件
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          # SARIF 文件相对于存储库根目录的路径
+          sarif_file: credo_output.sarif

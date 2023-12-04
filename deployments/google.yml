@@ -1,0 +1,91 @@
+# 这个工作流将构建一个Docker容器，将其发布到Google Container Registry，并在推送到$default-branch分支时将其部署到GKE。
+
+# 要配置这个工作流：
+
+# 1. 确保您的存储库包含Google Kubernetes Engine集群的必要配置，包括deployment.yml、kustomization.yml、service.yml等。
+
+# 2. 创建并配置GitHub的工作负载标识联合（https://github.com/google-github-actions/auth#setting-up-workload-identity-federation）。
+
+# 3. 更改以下环境变量的值：GAR_LOCATION、GKE_ZONE、GKE_CLUSTER、IMAGE、REPOSITORY和DEPLOYMENT_NAME。
+
+#    有关如何运行工作流的更多支持，请访问https://github.com/google-github-actions/setup-gcloud/tree/master/example-workflows/gke-kustomize
+
+name: 构建并部署到GKE
+
+on:
+  push:
+    branches: [ $default-branch ]
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GAR_LOCATION: us-central1 # TODO: 更新Artifact Registry的区域
+  GKE_CLUSTER: cluster-1    # TODO: 更新为集群名称
+  GKE_ZONE: us-central1-c   # TODO: 更新为集群区域
+  DEPLOYMENT_NAME: gke-test # TODO: 更新为部署名称
+  REPOSITORY: samples # TODO: 更新为Artifact Registry Docker存储库
+  IMAGE: static-site
+
+jobs:
+  setup-build-publish-deploy:
+    name: 设置、构建、发布和部署
+    runs-on: ubuntu-latest
+    environment: production
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: 检出
+      uses: actions/checkout@v3
+
+    # 配置工作负载标识联合并生成访问令牌。
+    - id: 'auth'
+      name: '身份验证到Google Cloud'
+      uses: 'google-github-actions/auth@v0'
+      with:
+        token_format: 'access_token'
+        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+        service_account: 'my-service-account@my-project.iam.gserviceaccount.com'
+
+    # 备选选项 - 通过凭据JSON进行身份验证
+    # - id: 'auth'
+    #   uses: 'google-github-actions/auth@v0'
+    #   with:
+    #     credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+    - name: Docker配置
+      run: |-
+        echo ${{steps.auth.outputs.access_token}} | docker login -u oauth2accesstoken --password-stdin https://$GAR_LOCATION-docker.pkg.dev
+    # 获取GKE凭据，以便我们可以部署到集群
+    - name: 设置GKE凭据
+      uses: google-github-actions/get-gke-credentials@v0
+      with:
+        cluster_name: ${{ env.GKE_CLUSTER }}
+        location: ${{ env.GKE_ZONE }}
+
+    # 构建Docker镜像
+    - name: 构建
+      run: |-
+        docker build \
+          --tag "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA" \
+          --build-arg GITHUB_SHA="$GITHUB_SHA" \
+          --build-arg GITHUB_REF="$GITHUB_REF" \
+          .
+    # 将Docker镜像推送到Google Artifact Registry
+    - name: 发布
+      run: |-
+        docker push "$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA"
+    # 设置kustomize
+    - name: 设置Kustomize
+      run: |-
+        curl -sfLo kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
+        chmod u+x ./kustomize
+    # 将Docker镜像部署到GKE集群
+    - name: 部署
+      run: |-
+        # 替换k8s模板中的镜像名称
+        ./kustomize edit set image LOCATION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:TAG=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA
+        ./kustomize build . | kubectl apply -f -
+        kubectl rollout status deployment/$DEPLOYMENT_NAME
+        kubectl get services -o wide

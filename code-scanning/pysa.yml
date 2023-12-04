@@ -1,0 +1,47 @@
+# 此工作流使用 GitHub 未认证的操作。
+# 这些操作由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
+
+# 此工作流将 Python Static Analyzer (Pysa) 与
+# GitHub 的 Code Scanning 功能集成。
+#
+# Python Static Analyzer (Pysa) 是一个以安全为重点的静态
+# 分析工具，用于跟踪数据的流动，从其起源位置到危险位置的终点。
+#
+# 详细信息请参阅 https://pyre-check.org/docs/pysa-basics/
+
+name: Pysa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
+  schedule:
+    - cron: $cron-weekly
+
+permissions:
+  contents: read
+
+jobs:
+  pysa:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: 运行 Pysa
+        uses: facebook/pysa-action@f46a63777e59268613bd6e2ff4e29f144ca9e88b
+        with:
+          # 若要自定义这些输入：
+          # 请参阅 https://github.com/facebook/pysa-action#inputs
+          repo-directory: './'
+          requirements-path: 'requirements.txt'
+          infer-types: true
+          include-default-sapp-filters: true

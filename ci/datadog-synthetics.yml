@@ -1,0 +1,36 @@
+#这个工作流将在你的Datadog组织中触发合成测试。#
+#有关在GitHub工作流中运行合成测试的更多信息，请参见：https://docs.datadoghq.com/synthetics/cicd_integrations/github_actions/
+
+#这个工作流使用了GitHub未经认证的操作。
+#这些操作是由第三方提供的，并受到独立的服务条款、隐私政策和支持文档的管理。
+
+#要开始使用：
+
+#1. 将Datadog API（DD_API_KEY）和应用程序密钥（DD_APP_KEY）添加为 GitHub 仓库的 secrets。有关更多信息，请参见：https://docs.datadoghq.com/account_management/api-app-keys/。
+#2. 在工作流中开始使用该操作
+
+# 定义工作流的名称为Run Datadog Synthetic tests
+name: Run Datadog Synthetic tests
+
+# 控制工作流何时运行
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # 在GitHub工作流中运行合成测试。
+    # 有关其他配置选项，请访问市场中的操作：https://github.com/marketplace/actions/datadog-synthetics-ci
+    - name: Run Datadog Synthetic tests
+      uses: DataDog/synthetics-ci-github-action@2b56dc0cca9daa14ab69c0d1d6844296de8f941e
+      with:
+        api_key: ${{secrets.DD_API_KEY}}
+        app_key: ${{secrets.DD_APP_KEY}}
+        test_search_query: 'tag:e2e-tests' #修改此标签以适应你的标记策略
