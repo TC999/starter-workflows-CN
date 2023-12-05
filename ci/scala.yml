@@ -1,8 +1,5 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
+# 该工作流使用未由 GitHub 认证的操作。
+#它们由第三方提供，并受独立的服务条款、隐私政策和支持文档的约束。
 name: Scala CI
 
 on:
@@ -29,6 +26,6 @@ jobs:
         cache: 'sbt'
     - name: Run tests
       run: sbt test
-      # Optional: This step uploads information to the GitHub dependency graph and unblocking Dependabot alerts for the repository
+      # 可选步骤: 该步骤上传信息到 GitHub 依赖图，并解除仓库的 Dependabot 警报
     - name: Upload dependency graph
       uses: scalacenter/sbt-dependency-submission@ab086b50c947c9774b70f39fc7f6e20ca2706c91

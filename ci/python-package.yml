@@ -1,5 +1,5 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# 该工作流将安装 Python 依赖项，使用多个 Python 版本运行测试和 lint
+# 了解更多信息，请参阅：https://docs.github.com/zh/actions/automating-builds-and-tests/building-and-testing-python
 
 name: Python package
 
@@ -31,9 +31,9 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |
-        # stop the build if there are Python syntax errors or undefined names
+        # 如果有 Python 语法错误或未定义名称，则停止构建
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        # exit-zero 将所有错误视为警告。GitHub 编辑器宽度为 127 个字符
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |

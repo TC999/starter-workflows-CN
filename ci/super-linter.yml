@@ -1,8 +1,7 @@
-# This workflow executes several linters on changed files based on languages used in your code base whenever
-# you push a code or open a pull request.
+# 该工作流在每次推送代码或打开拉取请求时，基于代码库中使用的语言，对已更改的文件执行多个代码检查工具。
 #
-# You can adjust the behavior by modifying this file.
-# For more information, see:
+# 您可以通过修改此文件来调整行为。
+# 获取更多信息，请参阅：
 # https://github.com/github/super-linter
 name: Lint Code Base
 
@@ -18,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          # Full git history is needed to get a proper list of changed files within `super-linter`
+          # 需要完整的 Git 历史记录，以便在 `super-linter` 中获取正确的已更改文件列表
           fetch-depth: 0
 
       - name: Lint Code Base

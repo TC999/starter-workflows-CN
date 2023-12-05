@@ -1,9 +1,7 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-# This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
-# For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+# 该工作流使用未由 GitHub 认证的操作。
+# 它们由第三方提供，并受独立的服务条款、隐私政策和支持文档的约束。
+# 该工作流将下载预构建的 Ruby 版本，安装依赖项并使用 Rake 运行测试。
+# 有关更多信息，请参见 https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby。
 
 name: Ruby
 
@@ -27,12 +25,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up Ruby
-    # To automatically get bug fixes and new Ruby versions for ruby/setup-ruby,
-    # change this to (see https://github.com/ruby/setup-ruby#versioning):
+    # 若要自动获取 ruby/setup-ruby 的错误修复和新的 Ruby 版本，请更改为（参见 https://github.com/ruby/setup-ruby#versioning）：
     # uses: ruby/setup-ruby@v1
       uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+        bundler-cache: true # 运行 'bundle install' 并自动缓存安装的 gem
     - name: Run tests
       run: bundle exec rake

@@ -1,9 +1,6 @@
-# This workflow uses actions that are not certified by GitHub.  They are
-# provided by a third-party and are governed by separate terms of service,
-# privacy policy, and support documentation.
+# 该工作流使用未由 GitHub 认证的操作。它们由第三方提供，并受独立的服务条款、隐私政策和支持文档的约束。
 #
-# This workflow will install a prebuilt Ruby version, install dependencies, and
-# run tests and linters.
+# 该工作流将安装预构建的 Ruby 版本，安装依赖项，并运行测试和代码检查。
 name: "Ruby on Rails CI"
 on:
   push:
@@ -28,15 +25,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      # Add or replace dependency steps here
+      # 添加或替换依赖项步骤
       - name: Install Ruby and gems
         uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
         with:
           bundler-cache: true
-      # Add or replace database setup steps here
+      # 添加或替换数据库设置步骤
       - name: Set up database schema
         run: bin/rails db:schema:load
-      # Add or replace test runners here
+      # 添加或替换测试运行器步骤
       - name: Run tests
         run: bin/rake
 
@@ -49,7 +46,7 @@ jobs:
         uses: ruby/setup-ruby@55283cc23133118229fd3f97f9336ee23a179fcf # v1.146.0
         with:
           bundler-cache: true
-      # Add or replace any other lints here
+      # 添加或替换其他代码检查步骤
       - name: Security audit dependencies
         run: bin/bundler-audit --update
       - name: Security audit application code

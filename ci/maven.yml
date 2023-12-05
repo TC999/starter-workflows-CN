@@ -1,10 +1,8 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
+#这个工作流将使用Maven构建Java项目，并缓存/恢复任何依赖项以提高工作流执行时间。
+#如果想要了解更多信息，可以参考[这里](https://docs.github.com/zh/actions/automating-builds-and-tests/building-and-testing-java-with-maven)。
 
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+#这个工作流使用的操作未经GitHub认证。
+#它们由第三方提供，并受独立的服务条款、隐私政策和支持文档约束。
 
 name: Java CI with Maven
 

@@ -1,10 +1,7 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+# 该工作流使用未由 GitHub 认证的操作。
+# 它们由第三方提供，并受独立的服务条款、隐私政策和支持文档的约束。
 #
-# See https://github.com/r-lib/actions/tree/master/examples#readme for
-# additional example workflows available for the R community.
+# 有关 R 社区提供的其他示例工作流，请参见 https://github.com/r-lib/actions/tree/master/examples#readme。
 
 name: R
 
